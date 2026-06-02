@@ -14,7 +14,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -28,10 +28,10 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Log in to ghcr.io
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -42,7 +42,7 @@ jobs:
         run: echo "short=$(echo "${{ github.sha }}" | cut -c1-7)" >> "$GITHUB_OUTPUT"
 
       - name: Build and push image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
@@ -62,7 +62,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: echo "deploy triggered"
           # The server uses an SSH forced command (authorized_keys command="…");
-          # the script above is ignored. Connecting with the deploy key runs:
-          #   cd /opt/services/quiz && docker compose pull \
-          #     && docker compose up -d --remove-orphans
-          # on adm.agentic-reach.com — the same path as the sibling vibe service.
+          # the script above is ignored. The deploy key's forced command runs
+          #   sudo /opt/scripts/deploy.sh quiz
+          # on adm.agentic-reach.com, which does `docker compose pull && up -d
+          # --remove-orphans` in /opt/services/quiz (per the srvmgmt convention).
