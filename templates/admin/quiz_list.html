@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Admin · Quizze{% endblock %}
+
+{% block nav_cta %}
+<form method="post" action="/logout" style="display:inline;">
+  <button type="submit" class="ar-btn ar-btn-ghost">Abmelden</button>
+</form>
+{% endblock %}
+
+{% block content %}
+<section class="ar-container" style="padding: var(--ar-space-12) 0; max-width: 920px;">
+  <span class="ar-eyebrow">// Admin</span>
+  <h1 class="ar-display-s" style="margin-top: var(--ar-space-2);">Quizze</h1>
+
+  <div style="margin-top: var(--ar-space-8); display:grid; gap: var(--ar-space-4);">
+    {% for quiz in quizzes %}
+    <div class="ar-card" style="display:flex; align-items:center; justify-content:space-between; gap: var(--ar-space-4); flex-wrap:wrap;">
+      <div>
+        <strong>{{ quiz.title_de or quiz.slug }}</strong>
+        <span class="ar-mono ar-small" style="opacity:.6;"> · /q/{{ quiz.slug }}</span>
+        {% if quiz.is_published %}
+        <span class="ar-mono ar-small" style="color:var(--ar-coral);"> · live</span>
+        {% else %}
+        <span class="ar-mono ar-small" style="opacity:.5;"> · Entwurf</span>
+        {% endif %}
+      </div>
+      <div style="display:flex; gap: var(--ar-space-2); flex-wrap:wrap;">
+        <a href="/admin/quizzes/{{ quiz.id }}" class="ar-btn ar-btn-primary">Bearbeiten</a>
+        <a href="/admin/quizzes/{{ quiz.id }}/leads" class="ar-btn ar-btn-ghost">Leads</a>
+        <form method="post" action="/admin/quizzes/{{ quiz.id }}/publish" style="display:inline;">
+          <button type="submit" class="ar-btn ar-btn-ghost">{{ 'Offline' if quiz.is_published else 'Live' }}</button>
+        </form>
+        <form method="post" action="/admin/quizzes/{{ quiz.id }}/clone" style="display:inline;">
+          <button type="submit" class="ar-btn ar-btn-ghost">Klonen</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <p class="ar-body" style="opacity:.6;">Noch keine Quizze. Lege unten eines an.</p>
+    {% endfor %}
+  </div>
+
+  <div class="ar-card" style="margin-top: var(--ar-space-8); padding: var(--ar-space-6);">
+    <span class="ar-eyebrow">// Neues Quiz</span>
+    <form method="post" action="/admin/quizzes" class="ar-form-grid" style="margin-top: var(--ar-space-4);">
+      <div class="ar-field"><label class="ar-eyebrow">Slug</label><input name="slug" required placeholder="z.B. ai-readiness"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Titel (DE)</label><input name="title_de"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Titel (EN)</label><input name="title_en"></div>
+      <div class="ar-field full"><button type="submit" class="ar-btn ar-btn-coral">Quiz anlegen</button></div>
+    </form>
+  </div>
+</section>
+{% endblock %}

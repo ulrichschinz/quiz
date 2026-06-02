@@ -1,0 +1,48 @@
+name: Test
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Pip cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      # THE gate: lint + format-check + mypy + import-contracts + test-fast + doc-gate.
+      # CI uses the runner's system Python (no .venv), hence the PY/LINT_IMPORTS overrides.
+      - name: Verify
+        run: make PY=python LINT_IMPORTS=lint-imports verify
+
+      # Scaffold-Vertrag: a freshly scaffolded domain passes the tool gate with
+      # zero manual edits (and the independence contract is auto-patched).
+      - name: Scaffold smoke
+        run: |
+          python scripts/new_quiz_module.py scaffoldsmoke
+          grep -q '"app.domains.scaffoldsmoke"' pyproject.toml
+          make PY=python LINT_IMPORTS=lint-imports lint format-check typecheck contracts
+          python -m pytest tests/unit/test_scaffoldsmoke.py -q
+          rm -rf app/domains/scaffoldsmoke tests/unit/test_scaffoldsmoke.py scaffold.db
+          git checkout -- app pyproject.toml 2>/dev/null || true
+
+      - name: E2E tests
+        run: make PY=python test-e2e

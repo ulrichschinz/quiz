@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Scorecard{% endblock %}
+
+{% block content %}
+<section class="ar-container" style="padding: var(--ar-space-12) 0; max-width: 720px;">
+  <div id="quiz-app" data-slug="{{ slug }}" data-default-lang="{{ default_lang }}">
+    <div class="quiz-progress"><div class="quiz-progress__bar" id="quiz-bar"></div></div>
+    <div id="quiz-stage">
+      <p class="ar-mono" data-de="Lädt…" data-en="Loading…">Lädt…</p>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block body_scripts %}
+<script defer src="/static/quiz/player.js"></script>
+{% endblock %}

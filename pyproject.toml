@@ -1,0 +1,96 @@
+# Tool config home for ruff (lint+format), mypy (type-check) and
+# import-linter (executable import contracts). NOT a packaging manifest —
+# the app is pip-installed from requirements*.txt; there is no
+# [project]/[build-system] table here on purpose (tool config only).
+#
+# Organizing principle (AGENTS.md): bounded domains. The import-linter
+# contracts below are the EXECUTABLE encoding of the allowed-dependency
+# edges. A rule for a unit that does not exist yet stays out until that unit
+# exists — contracts sharpen as the structure grows, phase by phase.
+
+# --------------------------------------------------------------------------
+# ruff — lint + format
+# --------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [".venv", "static", "migrations"]
+
+[tool.ruff.lint]
+# Real-bug rules (pyflakes F, pycodestyle E4/E7/E9) + isort (I). The Soll
+# surface (app/ + scripts/) is held to these; it is small and hand-clean.
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/*" = ["F401", "F811"]
+# main.py loads dotenv before constructing the engine-bearing modules at
+# import time; the deliberate ordering trips E402 on the post-load_dotenv
+# imports. Intentional — see the module docstring.
+"app/main.py" = ["E402"]
+
+# --------------------------------------------------------------------------
+# mypy — type-check (lax global, app.* strict, app.interfaces.* relaxed)
+# --------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_unused_ignores = false
+exclude = "(^|/)(\\.venv|migrations)/"
+
+[[tool.mypy.overrides]]
+# New domain/core logic is strict by construction (the scaffold emits code
+# that passes this).
+module = "app.*"
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_return_any = true
+
+[[tool.mypy.overrides]]
+# Interface handlers (FastAPI routers) carry framework-shaped signatures
+# (Depends, Request, Form, Optional ORM ids). They are not the typed surface
+# that matters — core + domains are strict — so the delivery layer is left
+# un-gated by mypy (same decision as the sibling vibe service).
+module = "app.interfaces.*"
+ignore_errors = true
+
+# --------------------------------------------------------------------------
+# import-linter — executable import contracts
+# --------------------------------------------------------------------------
+[tool.importlinter]
+root_packages = ["app"]
+
+[[tool.importlinter.contracts]]
+# The reusable kernel knows nothing about domains, interfaces or contracts —
+# everything depends on core, core depends on nothing of ours.
+name = "app.core is domain-agnostic"
+type = "forbidden"
+source_modules = ["app.core"]
+forbidden_modules = ["app.domains", "app.interfaces", "app.contracts"]
+
+[[tool.importlinter.contracts]]
+# Domains are independent: submissions references a quiz only by soft id +
+# copied scores, never by importing the quizzes package. `make new-quiz X`
+# patches this modules array so every new domain is enforced from commit one.
+name = "domains are independent"
+type = "independence"
+modules = [
+    "app.domains.quizzes",
+    "app.domains.submissions",
+]
+
+[[tool.importlinter.contracts]]
+# Interfaces reach domains through their `service` (and `schemas`), never by
+# importing the ORM `models` directly. allow_indirect_imports keeps the
+# legitimate transitive interface → service → models chain legal while
+# forbidding a direct models import in any router.
+name = "interfaces reach domains via services, not models"
+type = "forbidden"
+source_modules = ["app.interfaces"]
+forbidden_modules = [
+    "app.domains.quizzes.models",
+    "app.domains.submissions.models",
+]
+allow_indirect_imports = "True"

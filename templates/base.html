@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Agentic AI Readiness{% endblock %} · Agentic Reach</title>
+  <link rel="icon" href="/static/brand/logos/mark-color.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/brand/brand-kit.css">
+  <link rel="stylesheet" href="/static/quiz/quiz.css">
+  {% block head_extra %}{% endblock %}
+</head>
+<body data-lang="{{ lang|default('de') }}">
+
+<nav class="ar-nav">
+  <div class="ar-nav-row ar-container">
+    <a href="/" class="ar-nav-brand">
+      <img src="/static/brand/logos/lockup-horizontal-color.svg" alt="Agentic Reach" height="28">
+    </a>
+    <div class="ar-nav-right">
+      <div class="ar-lang-toggle">
+        <button type="button" data-lang-btn="de">DE</button>
+        <button type="button" data-lang-btn="en">EN</button>
+      </div>
+      {% block nav_cta %}{% endblock %}
+    </div>
+  </div>
+</nav>
+
+<main class="ar-main">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="ar-footer">
+  <div class="ar-container">
+    <p class="ar-footer-claim"
+       data-de="Bereit für das <em>agentische</em> Zeitalter?"
+       data-en="Ready for the <em>agentic</em> era?">Bereit für das <em>agentische</em> Zeitalter?</p>
+    <div class="ar-footer-meta">
+      <span class="ar-mono">// Agentic Reach</span>
+      <span class="ar-mono">© 2026 · for what's next</span>
+    </div>
+  </div>
+</footer>
+
+<script defer src="/static/brand/components.js"></script>
+<!-- Unified DE/EN toggle: every [data-de]/[data-en] element swaps innerHTML,
+     the active lang button is marked, and a 'langchange' event lets the quiz
+     player re-render its dynamic questions. -->
+<script>
+  (function () {
+    function setLang(lang) {
+      if (lang !== 'de' && lang !== 'en') lang = 'de';
+      document.body.dataset.lang = lang;
+      document.documentElement.lang = lang;
+      document.querySelectorAll('[data-' + lang + ']').forEach(function (el) {
+        var v = el.getAttribute('data-' + lang);
+        if (v != null) el.innerHTML = v;
+      });
+      document.querySelectorAll('[data-lang-btn]').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.langBtn === lang);
+      });
+      window.dispatchEvent(new CustomEvent('langchange', { detail: { lang: lang } }));
+    }
+    window.ARQuizLang = { set: setLang, get: function () { return document.body.dataset.lang || 'de'; } };
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('[data-lang-btn]').forEach(function (b) {
+        b.addEventListener('click', function () { setLang(b.dataset.langBtn); });
+      });
+      setLang(document.body.dataset.lang || 'de');
+    });
+  })();
+</script>
+{% block body_scripts %}{% endblock %}
+</body>
+</html>

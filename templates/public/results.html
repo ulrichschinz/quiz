@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ result.tier_name or 'Ergebnis' }}{% endblock %}
+
+{% block content %}
+<section class="ar-container" style="padding: var(--ar-space-12) 0; max-width: 760px;">
+
+  <span class="ar-eyebrow">// {{ result.intro }}</span>
+
+  <div class="ar-card" style="margin-top: var(--ar-space-5); display:flex; align-items:center; gap: var(--ar-space-8); flex-wrap:wrap;">
+    <div>
+      <div class="score-big">{{ sub.overall_score }}<span style="font-size:var(--ar-text-lg);opacity:.5;">/100</span></div>
+      {% if result.tier_name %}
+      <div class="ar-card-num" style="margin-top: var(--ar-space-2);">{{ result.tier_name }}</div>
+      {% endif %}
+    </div>
+    <div style="flex:1; min-width:280px;">
+      {% if result.tier_headline %}
+      <h1 class="ar-display-s">{{ result.tier_headline }}</h1>
+      {% endif %}
+      {% if result.tier_body %}
+      <p class="ar-body" style="margin-top: var(--ar-space-3);">{{ result.tier_body }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if result.show_breakdown and result.dimensions %}
+  <div style="margin-top: var(--ar-space-10);">
+    <span class="ar-eyebrow">// {{ 'Ihre Dimensionen' if lang == 'de' else 'Your dimensions' }}</span>
+    <div style="margin-top: var(--ar-space-5);">
+      {% for d in result.dimensions %}
+      <div class="dim-row">
+        <div style="display:flex; justify-content:space-between;">
+          <span class="ar-body">{{ d.name }}</span>
+          <span class="ar-mono">{{ d.score }}/100</span>
+        </div>
+        <div class="dim-bar"><div class="dim-bar__fill" style="width: {{ d.score }}%;"></div></div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if result.cta_url %}
+  <div style="margin-top: var(--ar-space-10);">
+    <a href="{{ result.cta_url }}" class="ar-btn ar-btn-coral">{{ result.cta_label or 'Gespräch vereinbaren →' }}</a>
+  </div>
+  {% endif %}
+
+</section>
+{% endblock %}

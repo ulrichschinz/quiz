@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Admin · {{ quiz.slug }}{% endblock %}
+
+{% block nav_cta %}
+<form method="post" action="/logout" style="display:inline;">
+  <button type="submit" class="ar-btn ar-btn-ghost">Abmelden</button>
+</form>
+{% endblock %}
+
+{% block content %}
+<section class="ar-container" style="padding: var(--ar-space-10) 0; max-width: 920px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap: var(--ar-space-3);">
+    <div>
+      <a href="/admin" class="ar-mono ar-small">// ← Alle Quizze</a>
+      <h1 class="ar-display-s" style="margin-top: var(--ar-space-1);">{{ quiz.title_de or quiz.slug }}</h1>
+    </div>
+    <div style="display:flex; gap: var(--ar-space-2); flex-wrap:wrap;">
+      <a href="/q/{{ quiz.slug }}" class="ar-btn ar-btn-ghost" target="_blank">Vorschau</a>
+      <a href="/admin/quizzes/{{ quiz.id }}/leads" class="ar-btn ar-btn-ghost">Leads</a>
+      <form method="post" action="/admin/quizzes/{{ quiz.id }}/publish" style="display:inline;">
+        <button type="submit" class="ar-btn ar-btn-coral">{{ 'Offline nehmen' if quiz.is_published else 'Live schalten' }}</button>
+      </form>
+      <form method="post" action="/admin/quizzes/{{ quiz.id }}/delete" style="display:inline;"
+            onsubmit="return confirm('Quiz wirklich löschen?');">
+        <button type="submit" class="ar-btn ar-btn-ghost">Löschen</button>
+      </form>
+    </div>
+  </div>
+
+  {# --- Meta --- #}
+  <div class="ar-card" style="margin-top: var(--ar-space-6); padding: var(--ar-space-6);">
+    <span class="ar-eyebrow">// Stammdaten</span>
+    <form method="post" action="/admin/quizzes/{{ quiz.id }}/meta" class="ar-form-grid" style="margin-top: var(--ar-space-4);">
+      <div class="ar-field"><label class="ar-eyebrow">Slug</label><input name="slug" value="{{ quiz.slug }}" required></div>
+      <div class="ar-field"><label class="ar-eyebrow">Standard-Sprache</label><input name="default_lang" value="{{ quiz.default_lang }}"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Titel (DE)</label><input name="title_de" value="{{ quiz.title_de }}"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Titel (EN)</label><input name="title_en" value="{{ quiz.title_en }}"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Dauer (Min.)</label><input name="estimated_minutes" type="number" value="{{ quiz.estimated_minutes }}"></div>
+      <div class="ar-field full"><button class="ar-btn ar-btn-primary">Speichern</button></div>
+    </form>
+  </div>
+
+  {# --- Landing --- #}
+  <div class="ar-card" style="margin-top: var(--ar-space-5); padding: var(--ar-space-6);">
+    <span class="ar-eyebrow">// Landingpage</span>
+    <form method="post" action="/admin/quizzes/{{ quiz.id }}/landing" class="ar-form-grid" style="margin-top: var(--ar-space-4);">
+      <div class="ar-field"><label class="ar-eyebrow">Eyebrow (DE)</label><input name="hero_eyebrow_de" value="{{ landing.hero_eyebrow_de if landing }}"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Eyebrow (EN)</label><input name="hero_eyebrow_en" value="{{ landing.hero_eyebrow_en if landing }}"></div>
+      <div class="ar-field full"><label class="ar-eyebrow">Headline (DE)</label><input name="hero_headline_de" value="{{ landing.hero_headline_de if landing }}"></div>
+      <div class="ar-field full"><label class="ar-eyebrow">Headline (EN)</label><input name="hero_headline_en" value="{{ landing.hero_headline_en if landing }}"></div>
+      <div class="ar-field full"><label class="ar-eyebrow">Subline (DE)</label><textarea name="hero_subline_de" rows="2">{{ landing.hero_subline_de if landing }}</textarea></div>
+      <div class="ar-field full"><label class="ar-eyebrow">Subline (EN)</label><textarea name="hero_subline_en" rows="2">{{ landing.hero_subline_en if landing }}</textarea></div>
+      <div class="ar-field"><label class="ar-eyebrow">CTA (DE)</label><input name="cta_label_de" value="{{ landing.cta_label_de if landing }}"></div>
+      <div class="ar-field"><label class="ar-eyebrow">CTA (EN)</label><input name="cta_label_en" value="{{ landing.cta_label_en if landing }}"></div>
+      <div class="ar-field full"><label class="ar-eyebrow">Benefits (JSON: [{"de":"…","en":"…"}])</label><textarea name="benefits_json" rows="2">{{ landing.benefits_json if landing else '[]' }}</textarea></div>
+      <div class="ar-field full"><button class="ar-btn ar-btn-primary">Speichern</button></div>
+    </form>
+  </div>
+
+  {# --- Dimensions --- #}
+  <div class="ar-card" style="margin-top: var(--ar-space-5); padding: var(--ar-space-6);">
+    <span class="ar-eyebrow">// Dimensionen</span>
+    {% for d in dimensions %}
+    <form method="post" action="/admin/dimensions/{{ d.id }}" class="ar-form-grid" style="margin-top: var(--ar-space-4); align-items:end;">
+      <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
+      <div class="ar-field"><label class="ar-eyebrow">Key</label><input name="key" value="{{ d.key }}"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Name (DE)</label><input name="name_de" value="{{ d.name_de }}"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Name (EN)</label><input name="name_en" value="{{ d.name_en }}"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Gewicht</label><input name="weight" type="number" step="0.1" value="{{ d.weight }}"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Pos.</label><input name="position" type="number" value="{{ d.position }}"></div>
+      <div class="ar-field" style="flex-direction:row; gap:6px;">
+        <button class="ar-btn ar-btn-primary">OK</button>
+        <button formaction="/admin/dimensions/{{ d.id }}/delete" class="ar-btn ar-btn-ghost">✕</button>
+      </div>
+    </form>
+    {% endfor %}
+    <form method="post" action="/admin/quizzes/{{ quiz.id }}/dimensions" class="ar-form-grid" style="margin-top: var(--ar-space-5);">
+      <div class="ar-field"><label class="ar-eyebrow">Neue Dimension · Key</label><input name="key" required></div>
+      <div class="ar-field"><label class="ar-eyebrow">Name (DE)</label><input name="name_de"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Name (EN)</label><input name="name_en"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Gewicht</label><input name="weight" type="number" step="0.1" value="1.0"></div>
+      <div class="ar-field"><button class="ar-btn ar-btn-coral">+ Hinzufügen</button></div>
+    </form>
+  </div>
+
+  {# --- Questions --- #}
+  <div class="ar-card" style="margin-top: var(--ar-space-5); padding: var(--ar-space-6);">
+    <span class="ar-eyebrow">// Fragen</span>
+    {% for item in questions %}
+    {% set q = item.q %}
+    <div style="margin-top: var(--ar-space-5); padding-top: var(--ar-space-4); border-top:1px solid var(--ar-hairline);">
+      <form method="post" action="/admin/questions/{{ q.id }}" class="ar-form-grid" style="align-items:end;">
+        <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
+        <div class="ar-field full"><label class="ar-eyebrow">Frage (DE)</label><input name="text_de" value="{{ q.text_de }}"></div>
+        <div class="ar-field full"><label class="ar-eyebrow">Frage (EN)</label><input name="text_en" value="{{ q.text_en }}"></div>
+        <div class="ar-field"><label class="ar-eyebrow">Dimension</label>
+          <select name="dimension_id">
+            {% for d in dimensions %}<option value="{{ d.id }}" {{ 'selected' if d.id == q.dimension_id }}>{{ d.name_de or d.key }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="ar-field"><label class="ar-eyebrow">Pos.</label><input name="position" type="number" value="{{ q.position }}"></div>
+        <div class="ar-field" style="flex-direction:row; gap:6px;">
+          <button class="ar-btn ar-btn-primary">OK</button>
+          <button formaction="/admin/questions/{{ q.id }}/delete" class="ar-btn ar-btn-ghost">✕ Frage</button>
+        </div>
+      </form>
+
+      <div style="margin-top: var(--ar-space-3); padding-left: var(--ar-space-4);">
+        {% for o in item.options %}
+        <form method="post" action="/admin/options/{{ o.id }}" class="ar-form-grid" style="align-items:end;">
+          <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
+          <div class="ar-field"><label class="ar-eyebrow">Option (DE)</label><input name="label_de" value="{{ o.label_de }}"></div>
+          <div class="ar-field"><label class="ar-eyebrow">Option (EN)</label><input name="label_en" value="{{ o.label_en }}"></div>
+          <div class="ar-field"><label class="ar-eyebrow">Gewicht 0–1</label><input name="weight" type="number" step="0.01" value="{{ o.weight }}"></div>
+          <div class="ar-field"><label class="ar-eyebrow">Pos.</label><input name="position" type="number" value="{{ o.position }}"></div>
+          <div class="ar-field" style="flex-direction:row; gap:6px;">
+            <button class="ar-btn ar-btn-primary">OK</button>
+            <button formaction="/admin/options/{{ o.id }}/delete" class="ar-btn ar-btn-ghost">✕</button>
+          </div>
+        </form>
+        {% endfor %}
+        <form method="post" action="/admin/questions/{{ q.id }}/options" class="ar-form-grid" style="margin-top: var(--ar-space-2);">
+          <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
+          <div class="ar-field"><label class="ar-eyebrow">Neue Option (DE)</label><input name="label_de"></div>
+          <div class="ar-field"><label class="ar-eyebrow">(EN)</label><input name="label_en"></div>
+          <div class="ar-field"><label class="ar-eyebrow">Gewicht</label><input name="weight" type="number" step="0.01" value="0.0"></div>
+          <div class="ar-field"><button class="ar-btn ar-btn-ghost">+ Option</button></div>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+
+    <form method="post" action="/admin/quizzes/{{ quiz.id }}/questions" class="ar-form-grid" style="margin-top: var(--ar-space-6); padding-top: var(--ar-space-4); border-top:1px solid var(--ar-hairline);">
+      <div class="ar-field full"><label class="ar-eyebrow">Neue Frage (DE)</label><input name="text_de"></div>
+      <div class="ar-field full"><label class="ar-eyebrow">Neue Frage (EN)</label><input name="text_en"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Dimension</label>
+        <select name="dimension_id">
+          {% for d in dimensions %}<option value="{{ d.id }}">{{ d.name_de or d.key }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="ar-field"><button class="ar-btn ar-btn-coral">+ Frage</button></div>
+    </form>
+  </div>
+
+  {# --- Tiers --- #}
+  <div class="ar-card" style="margin-top: var(--ar-space-5); padding: var(--ar-space-6);">
+    <span class="ar-eyebrow">// Auswertungen (Tiers)</span>
+    {% for t in tiers %}
+    <form method="post" action="/admin/tiers/{{ t.id }}" class="ar-form-grid" style="margin-top: var(--ar-space-5); padding-top: var(--ar-space-3); border-top:1px solid var(--ar-hairline); align-items:end;">
+      <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
+      <div class="ar-field"><label class="ar-eyebrow">Name (DE)</label><input name="name_de" value="{{ t.name_de }}"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Name (EN)</label><input name="name_en" value="{{ t.name_en }}"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Min</label><input name="min_score" type="number" value="{{ t.min_score }}"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Max</label><input name="max_score" type="number" value="{{ t.max_score }}"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Pos.</label><input name="position" type="number" value="{{ t.position }}"></div>
+      <div class="ar-field full"><label class="ar-eyebrow">Headline (DE)</label><input name="headline_de" value="{{ t.headline_de }}"></div>
+      <div class="ar-field full"><label class="ar-eyebrow">Headline (EN)</label><input name="headline_en" value="{{ t.headline_en }}"></div>
+      <div class="ar-field full"><label class="ar-eyebrow">Text (DE)</label><textarea name="body_de" rows="2">{{ t.body_de }}</textarea></div>
+      <div class="ar-field full"><label class="ar-eyebrow">Text (EN)</label><textarea name="body_en" rows="2">{{ t.body_en }}</textarea></div>
+      <div class="ar-field"><label class="ar-eyebrow">CTA (DE)</label><input name="cta_label_de" value="{{ t.cta_label_de or '' }}"></div>
+      <div class="ar-field"><label class="ar-eyebrow">CTA (EN)</label><input name="cta_label_en" value="{{ t.cta_label_en or '' }}"></div>
+      <div class="ar-field full"><label class="ar-eyebrow">CTA-URL</label><input name="cta_url" value="{{ t.cta_url or '' }}"></div>
+      <div class="ar-field" style="flex-direction:row; gap:6px;">
+        <button class="ar-btn ar-btn-primary">Speichern</button>
+        <button formaction="/admin/tiers/{{ t.id }}/delete" class="ar-btn ar-btn-ghost">✕</button>
+      </div>
+    </form>
+    {% endfor %}
+    <form method="post" action="/admin/quizzes/{{ quiz.id }}/tiers" class="ar-form-grid" style="margin-top: var(--ar-space-6);">
+      <div class="ar-field"><label class="ar-eyebrow">Neuer Tier · Name (DE)</label><input name="name_de"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Name (EN)</label><input name="name_en"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Min</label><input name="min_score" type="number" value="0"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Max</label><input name="max_score" type="number" value="100"></div>
+      <div class="ar-field"><button class="ar-btn ar-btn-coral">+ Tier</button></div>
+    </form>
+  </div>
+
+  {# --- Result config --- #}
+  <div class="ar-card" style="margin-top: var(--ar-space-5); padding: var(--ar-space-6);">
+    <span class="ar-eyebrow">// Ergebnis & E-Mail</span>
+    <form method="post" action="/admin/quizzes/{{ quiz.id }}/result" class="ar-form-grid" style="margin-top: var(--ar-space-4);">
+      <div class="ar-field"><label class="ar-eyebrow">Intro (DE)</label><input name="intro_de" value="{{ result_cfg.intro_de if result_cfg }}"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Intro (EN)</label><input name="intro_en" value="{{ result_cfg.intro_en if result_cfg }}"></div>
+      <div class="ar-field full" style="flex-direction:row; gap:8px; align-items:center;">
+        <input type="checkbox" name="show_dimension_breakdown" id="sdb" style="width:auto;" {{ 'checked' if (result_cfg and result_cfg.show_dimension_breakdown) }}>
+        <label for="sdb" class="ar-small">Dimensions-Aufschlüsselung anzeigen</label>
+      </div>
+      <div class="ar-field"><label class="ar-eyebrow">E-Mail-Betreff (DE) · {score}</label><input name="email_subject_de" value="{{ result_cfg.email_subject_de if result_cfg }}"></div>
+      <div class="ar-field"><label class="ar-eyebrow">Betreff (EN)</label><input name="email_subject_en" value="{{ result_cfg.email_subject_en if result_cfg }}"></div>
+      <div class="ar-field full"><label class="ar-eyebrow">E-Mail-Text · {name} {score} {tier} {url}</label><textarea name="email_body_template" rows="4">{{ result_cfg.email_body_template if result_cfg }}</textarea></div>
+      <div class="ar-field full"><label class="ar-eyebrow">Team-Benachrichtigung (Komma-getrennt)</label><input name="notify_emails" value="{{ result_cfg.notify_emails if result_cfg }}"></div>
+      <div class="ar-field full"><button class="ar-btn ar-btn-primary">Speichern</button></div>
+    </form>
+  </div>
+
+</section>
+{% endblock %}

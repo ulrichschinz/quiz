@@ -1,0 +1,29 @@
+services:
+  app:
+    build: .
+    image: ghcr.io/agentic-reach/quiz:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist the lead DB across deploys (schema migrated in-process on boot).
+      - ./quiz.db:/app/quiz.db
+    env_file:
+      - .env
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  caddy_data:
+  caddy_config:

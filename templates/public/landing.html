@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Agentic AI Readiness Scorecard{% endblock %}
+
+{% block content %}
+<section class="ar-container" style="padding: var(--ar-space-20) 0;">
+  <div style="max-width: 760px;">
+  {% if landing %}
+    <span class="ar-eyebrow"
+          data-de="{{ landing.hero_eyebrow_de }}"
+          data-en="{{ landing.hero_eyebrow_en }}">{{ landing.hero_eyebrow_de }}</span>
+    <h1 class="ar-display-l" style="margin-top: var(--ar-space-3);"
+        data-de="{{ landing.hero_headline_de }}"
+        data-en="{{ landing.hero_headline_en }}">{{ landing.hero_headline_de|safe }}</h1>
+    <p class="ar-lead" style="margin-top: var(--ar-space-5);"
+       data-de="{{ landing.hero_subline_de }}"
+       data-en="{{ landing.hero_subline_en }}">{{ landing.hero_subline_de }}</p>
+
+    {% if landing.benefits %}
+    <ul class="ar-list-mono" style="margin-top: var(--ar-space-6);">
+      {% for b in landing.benefits %}
+      <li data-de="{{ b.de }}" data-en="{{ b.en }}">{{ b.de }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    <div style="margin-top: var(--ar-space-8); display:flex; gap: var(--ar-space-3); align-items:center;">
+      <a href="/q/{{ landing.slug }}/take" class="ar-btn ar-btn-coral"
+         data-de="{{ landing.cta_label_de }}"
+         data-en="{{ landing.cta_label_en }}">{{ landing.cta_label_de }}</a>
+      <span class="ar-mono" style="opacity:.6;"
+            data-de="// ca. {{ landing.estimated_minutes }} Min."
+            data-en="// approx. {{ landing.estimated_minutes }} min">// ca. {{ landing.estimated_minutes }} Min.</span>
+    </div>
+  {% else %}
+    <span class="ar-eyebrow">// Agentic AI Readiness</span>
+    <h1 class="ar-display-l" style="margin-top: var(--ar-space-3);"
+        data-de="Ist Ihre Organisation bereit für das <em>agentische</em> KI-Zeitalter?"
+        data-en="Is your organization ready for the <em>agentic</em> AI era?">Ist Ihre Organisation bereit für das <em>agentische</em> KI-Zeitalter?</h1>
+    <p class="ar-lead" style="margin-top: var(--ar-space-5);"
+       data-de="In Kürze verfügbar."
+       data-en="Coming soon.">In Kürze verfügbar.</p>
+  {% endif %}
+  </div>
+</section>
+{% endblock %}
