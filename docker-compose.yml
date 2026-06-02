@@ -1,7 +1,7 @@
 services:
   app:
     build: .
-    image: ghcr.io/agentic-reach/quiz:latest
+    image: ghcr.io/ulrichschinz/quiz:latest
     restart: unless-stopped
     ports:
       - "8000:8000"
