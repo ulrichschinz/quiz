@@ -4,7 +4,7 @@ PY ?= .venv/bin/python
 # import-linter ships only a console script (no `python -m` entrypoint).
 LINT_IMPORTS ?= .venv/bin/lint-imports
 
-.PHONY: help install dev-install verify lint format-check fmt typecheck contracts doc-gate test test-fast test-e2e new-quiz seed clean
+.PHONY: help install dev-install verify lint format-check fmt typecheck contracts doc-gate test test-fast test-e2e new-quiz seed clean index index-q index-status index-hooks
 
 help:
 	@echo "Agentic Reach Quiz — make targets"
@@ -21,6 +21,10 @@ help:
 	@echo "  make test             full test suite"
 	@echo "  make test-fast        unit + integration (skip e2e)"
 	@echo "  make test-e2e         end-to-end tests (FastAPI TestClient)"
+	@echo "  make index            (re)build the code index (.code-index/)"
+	@echo "  make index-q Q=...    query the index (search)"
+	@echo "  make index-status     index freshness + counts"
+	@echo "  make index-hooks      install git hooks that rebuild on pull/checkout"
 
 install:
 	$(PY) -m pip install -r requirements.txt
@@ -32,13 +36,13 @@ dev-install:
 verify: lint format-check typecheck contracts test-fast doc-gate
 
 lint:
-	$(PY) -m ruff check scripts app
+	$(PY) -m ruff check scripts app codeindex
 
 format-check:
-	$(PY) -m ruff format --check scripts app
+	$(PY) -m ruff format --check scripts app codeindex
 
 fmt:
-	$(PY) -m ruff format scripts app
+	$(PY) -m ruff format scripts app codeindex
 
 typecheck:
 	$(PY) -m mypy app
@@ -68,6 +72,22 @@ new-quiz:
 
 seed:
 	PYTHONPATH=. $(PY) scripts/seed_flagship.py
+
+# --- Code index (software-repo-prompt.md pillars 8 + 9) -------------------
+# Agent-agnostic: `python -m codeindex <cmd>` works for any agent with a shell;
+# the MCP server (codeindex/mcp_server.py) is the native path for MCP agents.
+index:
+	$(PY) -m codeindex build
+
+index-q:
+	@test -n "$(Q)" || { echo 'usage: make index-q Q="<search terms>"'; exit 2; }
+	$(PY) -m codeindex search $(Q)
+
+index-status:
+	$(PY) -m codeindex status
+
+index-hooks:
+	$(PY) -m codeindex install-hooks
 
 clean:
 	rm -rf .pytest_cache __pycache__ */__pycache__ .coverage reports

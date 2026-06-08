@@ -1,0 +1,5 @@
+# Optional: only needed to run the code-index MCP server
+# (`python -m codeindex.mcp_server`). The index core + CLI are stdlib-only and
+# need nothing here. Kept out of requirements-dev.txt so the acceptance gate
+# stays hermetic.
+mcp==1.27.2
