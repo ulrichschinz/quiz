@@ -52,7 +52,26 @@
       <div class="ar-field full"><label class="ar-eyebrow">Subline (EN)</label><textarea name="hero_subline_en" rows="2">{{ landing.hero_subline_en if landing }}</textarea></div>
       <div class="ar-field"><label class="ar-eyebrow">CTA (DE)</label><input name="cta_label_de" value="{{ landing.cta_label_de if landing }}"></div>
       <div class="ar-field"><label class="ar-eyebrow">CTA (EN)</label><input name="cta_label_en" value="{{ landing.cta_label_en if landing }}"></div>
-      <div class="ar-field full"><label class="ar-eyebrow">Benefits (JSON: [{"de":"…","en":"…"}])</label><textarea name="benefits_json" rows="2">{{ landing.benefits_json if landing else '[]' }}</textarea></div>
+      <div class="ar-field full">
+        <label class="ar-eyebrow">Vorteile</label>
+        <p class="ar-small" style="opacity:.65; margin: 0 0 var(--ar-space-2); max-width: 60ch;">
+          Kurze Argumente, <strong>warum sich das Quiz lohnt</strong> — was es den Besucher kostet
+          (Zeit/Aufwand) und was er rausbekommt. Sie erscheinen als Aufzählung auf der Landingpage,
+          direkt unter der Überschrift, und sollen zum Start animieren.
+          <br>
+          Beispiele: „4 Dimensionen, ~3 Minuten" · „Sofort-Score von 0–100" · „Konkrete nächste Schritte"
+          · „Kostenlos &amp; unverbindlich". Jeweils auf Deutsch und Englisch (für den Sprachumschalter).
+        </p>
+        <div id="benefits-editor" data-benefits="{{ (landing.benefits_json if landing else '[]') | forceescape }}">
+          <input type="hidden" name="benefits_json" value="[]">
+          <div data-benefits-rows></div>
+          <button type="button" data-benefits-add class="ar-btn ar-btn-ghost" style="margin-top: var(--ar-space-3);">+ Vorteil hinzufügen</button>
+          <div style="margin-top: var(--ar-space-4);">
+            <span class="ar-eyebrow" style="opacity:.6;">// Vorschau</span>
+            <ul class="ar-list-mono" data-benefits-preview style="margin-top: var(--ar-space-2); display:none;"></ul>
+          </div>
+        </div>
+      </div>
       <div class="ar-field full"><button class="ar-btn ar-btn-primary">Speichern</button></div>
     </form>
   </div>
@@ -194,4 +213,8 @@
   </div>
 
 </section>
+{% endblock %}
+
+{% block body_scripts %}
+<script defer src="/static/admin/benefits-editor.js"></script>
 {% endblock %}
