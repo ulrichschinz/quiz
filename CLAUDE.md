@@ -47,6 +47,13 @@ tests/         unit / integration / e2e
 - New env var → `app/core/config.py` (`Settings`), documented in `.env.example`.
 - A whole new bounded context → `make new-quiz <name>` (never hand-create files).
 
+## Navigate with the code index first
+Before grepping, ask the repo-owned index (stdlib, self-healing):
+`python -m codeindex where|uses|impact <X>`, `make index-q Q="…"`. It answers
+"where is X / who uses X / what breaks if I change X / where do we already do
+this". Agent-agnostic (CLI for any shell; optional MCP server
+`python -m codeindex.mcp_server`). See ARCHITECTURE.md → Code-Index.
+
 ## Edit order within a domain
 `models.py → schemas.py → service.py → (router/interface) → tests`.
 

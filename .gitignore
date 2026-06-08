@@ -11,3 +11,4 @@ __pycache__/
 reports/
 .coverage
 .DS_Store
+.code-index/
