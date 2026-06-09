@@ -1,0 +1,67 @@
+{# Quiz Studio shell: fixed sidebar (real-route nav) + a focused content pane.
+   Section templates extend this and fill {% block studio_main %}. The route
+   passes `quiz` and `active` (one of: overview/questions/scoring/landing/
+   results/leads/settings) to highlight the current item server-side. #}
+{% extends "base.html" %}
+{% block title %}Admin · {{ quiz.title_de or quiz.slug }}{% endblock %}
+
+{% block head_extra %}<link rel="stylesheet" href="/static/admin/studio.css">{% endblock %}
+
+{% block lang_toggle %}{% endblock %}{# no DE/EN switch in the admin — fields are bilingual side-by-side #}
+
+{% block nav_cta %}
+<form method="post" action="/logout" style="display:inline;">
+  <button type="submit" class="ar-btn ar-btn-ghost">Abmelden</button>
+</form>
+{% endblock %}
+
+{% set nav = [
+  ('overview',  'Übersicht',       '◧', ''),
+  ('questions', 'Fragen',          '☰', '/questions'),
+  ('scoring',   'Bewertung',       '◐', '/scoring'),
+  ('landing',   'Landingpage',     '✦', '/landing'),
+  ('results',   'Ergebnis-Seite',  '✉', '/results'),
+  ('leads',     'Leads',           '☺', '/leads'),
+  ('settings',  'Einstellungen',   '⚙', '/settings'),
+] %}
+
+{% block content %}
+<div class="studio ar-container">
+  <aside class="studio-side">
+    <a href="/admin" class="studio-back">← Alle Quizze</a>
+    <nav class="studio-nav">
+      {% for key, label, ico, path in nav %}
+      <a href="/admin/quizzes/{{ quiz.id }}{{ path }}" class="{{ 'active' if active == key }}"
+         {% if active == key %}aria-current="page"{% endif %}>
+        <span class="ico" aria-hidden="true">{{ ico }}</span>{{ label }}
+      </a>
+      {% endfor %}
+    </nav>
+    <a class="studio-side-slug" href="/q/{{ quiz.slug }}" target="_blank">/q/{{ quiz.slug }}</a>
+  </aside>
+
+  <div class="studio-main">
+    <header class="studio-head">
+      <h1>{{ quiz.title_de or quiz.slug }}</h1>
+      <div class="studio-head-actions">
+        {% if quiz.is_published %}
+        <span class="pill pill-live"><span class="dot"></span>Live</span>
+        {% else %}
+        <span class="pill pill-draft"><span class="dot"></span>Entwurf</span>
+        {% endif %}
+        <a href="/q/{{ quiz.slug }}" class="ar-btn ar-btn-ghost" target="_blank">Vorschau</a>
+        <form method="post" action="/admin/quizzes/{{ quiz.id }}/publish" style="display:inline;">
+          <button type="submit" class="ar-btn ar-btn-coral">{{ 'Offline nehmen' if quiz.is_published else 'Live schalten' }}</button>
+        </form>
+      </div>
+    </header>
+
+    {% block studio_main %}{% endblock %}
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+<script defer src="/static/admin/benefits-editor.js"></script>
+<script defer src="/static/admin/admin-workspace.js"></script>
+{% endblock %}

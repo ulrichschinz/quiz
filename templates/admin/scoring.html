@@ -1,0 +1,38 @@
+{% extends "admin/_studio.html" %}
+{% block studio_main %}
+<h2 class="studio-area-title">Bewertung</h2>
+<p class="studio-area-intro">Lege die Themenbereiche fest, in die deine Fragen einzahlen, und was Besucher je nach Punktzahl als Auswertung sehen.</p>
+
+<div class="panel">
+  <h3 class="panel-title">Bereiche</h3>
+  <p class="admin-hint" style="margin-bottom: var(--ar-space-4);">Themen, in die deine Fragen sortiert sind. Das Gewicht bestimmt, wie stark ein Bereich in den Gesamt-Score zählt (höher = wichtiger).</p>
+  <div data-dimensions>
+    {% for d in dimensions %}{% include "admin/_dimension_row.html" %}{% endfor %}
+    <form class="opt-add" method="post" action="/admin/quizzes/{{ quiz.id }}/dimensions" data-inline data-mode="append">
+      <div class="opt-grid">
+        <div class="ar-field"><label>Neuer Bereich (Deutsch)</label><input name="name_de" placeholder="z. B. Strategie &amp; Vision"></div>
+        <div class="ar-field"><label>(Englisch)</label><input name="name_en"></div>
+        <div class="ar-field opt-weight"><label>Gewicht</label><input name="weight" inputmode="decimal" value="1.0"></div>
+        <div class="opt-actions"><button class="ar-btn ar-btn-ghost">+ Bereich</button></div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="panel">
+  <h3 class="panel-title">Bewertungs-Stufen</h3>
+  <p class="admin-hint" style="margin-bottom: var(--ar-space-4);">Was sehen Besucher je nach Punktzahl (0–100)? Lege Stufen mit „Score von … bis" und passendem Text an.</p>
+  <div data-tiers>
+    {% for t in tiers %}{% include "admin/_tier_card.html" %}{% endfor %}
+    <form method="post" action="/admin/quizzes/{{ quiz.id }}/tiers" data-inline data-mode="append">
+      <div class="tier-head">
+        <div class="ar-field"><label>Neue Stufe · Name (Deutsch)</label><input name="name_de" placeholder="z. B. Fortgeschritten"></div>
+        <div class="ar-field"><label>Name (Englisch)</label><input name="name_en"></div>
+        <div class="ar-field"><label>Score von</label><input name="min_score" type="number" value="0"></div>
+        <div class="ar-field"><label>bis</label><input name="max_score" type="number" value="100"></div>
+      </div>
+      <div style="margin-top: var(--ar-space-3);"><button class="ar-btn ar-btn-ghost">+ Stufe</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

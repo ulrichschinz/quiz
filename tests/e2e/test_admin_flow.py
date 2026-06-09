@@ -151,30 +151,56 @@ def test_inline_tier_min_max_validation(client, monkeypatch) -> None:
 
 
 @pytest.mark.e2e
-def test_editor_renders_section_rail_and_collapsible_questions(client, monkeypatch) -> None:
-    quiz_id, question_id = _login_and_build(client, monkeypatch)
+def test_studio_overview_renders_sidebar_and_dashboard(client, monkeypatch) -> None:
+    quiz_id, _ = _login_and_build(client, monkeypatch)
     page = client.get(f"/admin/quizzes/{quiz_id}")
     assert page.status_code == 200
-    # Section rail (Phase 2 overview) is present...
-    assert 'data-ws-nav' in page.text
-    assert 'data-ws-link="questions"' in page.text
-    # ...and questions render as collapsible <details> cards with a summary.
-    assert "data-question-card" in page.text
-    assert "ws-summary" in page.text
+    assert "studio-nav" in page.text  # fixed sidebar
+    assert f'href="/admin/quizzes/{quiz_id}/questions"' in page.text
+    assert "Startklar?" in page.text  # the completeness checklist
+    assert "tile-grid" in page.text  # dashboard tiles
 
 
 @pytest.mark.e2e
-def test_inline_add_question_returns_details_fragment(client, monkeypatch) -> None:
+def test_studio_section_pages_render(client, monkeypatch) -> None:
     quiz_id, _ = _login_and_build(client, monkeypatch)
-    frag = client.post(
+    for path, marker in [
+        ("/questions", "qlist"),
+        ("/scoring", "Bewertungs-Stufen"),
+        ("/landing", "Augenbraue"),
+        ("/results", "E-Mail-Text"),
+        ("/settings", "Quiz löschen"),
+        ("/leads", "lead-table"),
+    ]:
+        r = client.get(f"/admin/quizzes/{quiz_id}{path}")
+        assert r.status_code == 200, path
+        assert marker in r.text, path
+
+
+@pytest.mark.e2e
+def test_add_question_redirects_into_its_editor(client, monkeypatch) -> None:
+    quiz_id, _ = _login_and_build(client, monkeypatch)
+    r = client.post(
         f"/admin/quizzes/{quiz_id}/questions",
         data={"dimension_id": 1, "text_de": "Zweite", "text_en": "Second"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert f"/admin/quizzes/{quiz_id}/questions/" in r.headers["location"]
+
+
+@pytest.mark.e2e
+def test_add_dimension_derives_key_from_name(client, monkeypatch) -> None:
+    # The scoring add-form no longer posts a "key"; the route derives it.
+    quiz_id, _ = _login_and_build(client, monkeypatch)
+    r = client.post(
+        f"/admin/quizzes/{quiz_id}/dimensions",
+        data={"name_de": "Strategie & Vision", "name_en": "Strategy", "weight": "1.0"},
         headers={"X-Inline": "1"},
     )
-    assert frag.status_code == 200
-    assert "<details" in frag.text and "data-question-card" in frag.text
-    assert "Zweite" in frag.text
-    assert "<html" not in frag.text
+    assert r.status_code == 200
+    assert 'value="strategie_vision"' in r.text  # key derived from the German name
+    assert "data-card data-replace" in r.text  # rendered back as a dimension row
 
 
 @pytest.mark.e2e
@@ -208,6 +234,38 @@ def test_tier_non_integer_score_is_friendly_422(client, monkeypatch) -> None:
     )
     assert r.status_code == 422
     assert "ganze Zahlen" in r.text
+
+
+@pytest.mark.e2e
+def test_publish_returns_to_originating_area(client, monkeypatch) -> None:
+    quiz_id, _ = _login_and_build(client, monkeypatch)
+    r = client.post(
+        f"/admin/quizzes/{quiz_id}/publish",
+        headers={"Referer": f"http://x/admin/quizzes/{quiz_id}/scoring"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    assert r.headers["location"].endswith(f"/admin/quizzes/{quiz_id}/scoring")
+
+
+@pytest.mark.e2e
+def test_meta_empty_slug_is_friendly_422(client, monkeypatch) -> None:
+    quiz_id, _ = _login_and_build(client, monkeypatch)
+    r = client.post(
+        f"/admin/quizzes/{quiz_id}/meta",
+        data={"slug": "", "title_de": "X", "estimated_minutes": "3"},
+        headers={"X-Inline": "1"},
+    )
+    assert r.status_code == 422
+    assert "Slug" in r.text and "detail" not in r.text
+
+
+@pytest.mark.e2e
+def test_question_focus_foreign_id_redirects_to_list(client, monkeypatch) -> None:
+    quiz_id, _ = _login_and_build(client, monkeypatch)
+    r = client.get(f"/admin/quizzes/{quiz_id}/questions/99999", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"].endswith(f"/admin/quizzes/{quiz_id}/questions")
 
 
 @pytest.mark.e2e

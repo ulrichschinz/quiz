@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import io
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import (
@@ -36,6 +37,18 @@ def _back(quiz_id: int) -> RedirectResponse:
     return RedirectResponse(f"/admin/quizzes/{quiz_id}", status_code=303)
 
 
+def _redirect_back(request: Request, quiz_id: int) -> RedirectResponse:
+    """Return the user to the studio area they came from (the studio splits the
+    editor into per-area routes), falling back to the overview. Used for full-page
+    navigations (publish) and the no-JS POST fallback."""
+    ref = request.headers.get("referer")
+    if ref:
+        path = urlparse(ref).path
+        if path.startswith(f"/admin/quizzes/{quiz_id}"):
+            return RedirectResponse(path, status_code=303)
+    return _back(quiz_id)
+
+
 # --- inline-save plumbing (Phase 1) ----------------------------------------
 # The editor's per-entity forms POST with an `X-Inline: 1` header (set by
 # static/admin/admin-workspace.js). When present we answer with a fragment /
@@ -57,12 +70,24 @@ def _parse_int(raw: str) -> int:
     return int(raw.strip())
 
 
+def _slugify(text: str) -> str:
+    """Derive a dimension's internal code from its German name, so the user never
+    has to type a 'Key'. Lowercase, ascii-ish, underscores."""
+    out = []
+    for ch in text.strip().lower():
+        if ch.isalnum():
+            out.append(ch)
+        elif ch in " -_":
+            out.append("_")
+    return "_".join(filter(None, "".join(out).split("_")))
+
+
 def _invalid(request: Request, quiz_id: int, message: str) -> Response:
     """Validation failure: a friendly 422 for the inline path, a silent redirect
     (data simply not saved) for the no-JS fallback."""
     if _is_inline(request):
         return PlainTextResponse(message, status_code=422)
-    return _back(quiz_id)
+    return _redirect_back(request, quiz_id)
 
 
 def _fragment(
@@ -76,7 +101,7 @@ def _saved(request: Request, quiz_id: int) -> Response:
     """No-DOM-change success (singleton save / delete)."""
     if _is_inline(request):
         return Response(status_code=204)
-    return _back(quiz_id)
+    return _redirect_back(request, quiz_id)
 
 
 # --- Quiz list + create ----------------------------------------------------
@@ -98,27 +123,163 @@ def create_quiz(
     return _back(quiz.id)
 
 
-# --- Quiz editor -----------------------------------------------------------
-@router.get("/quizzes/{quiz_id}", response_class=HTMLResponse)
-def edit_quiz(quiz_id: int, request: Request, session: Session = Depends(get_session)):
+# --- Quiz Studio (one focused GET page per area; POSTs are shared below) ----
+def _load(session: Session, quiz_id: int):
     quiz = quizzes_admin.get_quiz(session, quiz_id)
     if quiz is None:
         raise HTTPException(status_code=404, detail="quiz not found")
-    questions = [
-        {"q": q, "options": quizzes_admin.get_options(session, q.id)}
-        for q in quizzes_admin.get_questions(session, quiz_id)
+    return quiz
+
+
+def _completeness(session: Session, quiz_id: int):
+    """Counts + a 'startklar?' checklist for the overview, computed in one place."""
+    dims = quizzes_admin.get_dimensions(session, quiz_id)
+    questions = quizzes_admin.get_questions(session, quiz_id)
+    tiers = quizzes_admin.get_tiers(session, quiz_id)
+    landing = quizzes_admin.get_landing(session, quiz_id)
+    result_cfg = quizzes_admin.get_result_config(session, quiz_id)
+    leads = submissions_service.list_submissions(session, quiz_id)
+    q_missing_options = sum(1 for q in questions if not quizzes_admin.get_options(session, q.id))
+    base = f"/admin/quizzes/{quiz_id}"
+    checklist = [
+        {"label": "Mindestens ein Bereich angelegt", "done": bool(dims), "link": f"{base}/scoring"},
+        {
+            "label": "Mindestens eine Frage angelegt",
+            "done": bool(questions),
+            "link": f"{base}/questions",
+        },
+        {
+            "label": "Jede Frage hat Antworten",
+            "done": bool(questions) and q_missing_options == 0,
+            "link": f"{base}/questions",
+        },
+        {"label": "Bewertungs-Stufen angelegt", "done": bool(tiers), "link": f"{base}/scoring"},
+        {
+            "label": "Landingpage-Überschrift gefüllt",
+            "done": bool(landing and landing.hero_headline_de),
+            "link": f"{base}/landing",
+        },
+        {
+            "label": "Ergebnis-E-Mail-Betreff gefüllt",
+            "done": bool(result_cfg and result_cfg.email_subject_de),
+            "link": f"{base}/results",
+        },
     ]
+    done = sum(1 for c in checklist if c["done"])
+    percent = round(done / len(checklist) * 100)
+    stats = {"questions": len(questions), "dimensions": len(dims), "leads": len(leads)}
+    return stats, checklist, percent, leads
+
+
+@router.get("/quizzes/{quiz_id}", response_class=HTMLResponse)
+def overview(quiz_id: int, request: Request, session: Session = Depends(get_session)):
+    quiz = _load(session, quiz_id)
+    stats, checklist, percent, leads = _completeness(session, quiz_id)
+    recent = sorted(leads, key=lambda r: r.created_at, reverse=True)[:5]
     return templates.TemplateResponse(
         request,
-        "admin/quiz_edit.html",
+        "admin/overview.html",
         {
             "quiz": quiz,
-            "landing": quizzes_admin.get_landing(session, quiz_id),
-            "result_cfg": quizzes_admin.get_result_config(session, quiz_id),
+            "active": "overview",
+            "stats": stats,
+            "checklist": checklist,
+            "percent": percent,
+            "recent_leads": recent,
+        },
+    )
+
+
+def _render_questions(request: Request, session: Session, quiz, focused_qid: int | None):
+    dims = quizzes_admin.get_dimensions(session, quiz.id)
+    all_q = quizzes_admin.get_questions(session, quiz.id)
+    by_dim: dict[int, list[dict[str, object]]] = {}
+    for q in all_q:
+        opts = quizzes_admin.get_options(session, q.id)
+        by_dim.setdefault(q.dimension_id, []).append(
+            {"q": q, "option_count": len(opts), "has_options": bool(opts)}
+        )
+    groups = [{"dimension": d, "questions": by_dim.get(d.id, [])} for d in dims]
+
+    target = focused_qid if focused_qid is not None else (all_q[0].id if all_q else None)
+    focused = None
+    if target is not None:
+        fq = quizzes_admin.get_question(session, target)
+        if fq is not None and fq.quiz_id == quiz.id:
+            focused = {"q": fq, "options": quizzes_admin.get_options(session, fq.id)}
+    return templates.TemplateResponse(
+        request,
+        "admin/questions.html",
+        {
+            "quiz": quiz,
+            "active": "questions",
+            "dimensions": dims,
+            "groups": groups,
+            "focused": focused,
+        },
+    )
+
+
+@router.get("/quizzes/{quiz_id}/questions", response_class=HTMLResponse)
+def questions_page(quiz_id: int, request: Request, session: Session = Depends(get_session)):
+    return _render_questions(request, session, _load(session, quiz_id), None)
+
+
+@router.get("/quizzes/{quiz_id}/questions/{question_id}", response_class=HTMLResponse)
+def question_focus(
+    quiz_id: int, question_id: int, request: Request, session: Session = Depends(get_session)
+):
+    quiz = _load(session, quiz_id)
+    fq = quizzes_admin.get_question(session, question_id)
+    if fq is None or fq.quiz_id != quiz.id:
+        return RedirectResponse(f"/admin/quizzes/{quiz_id}/questions", status_code=303)
+    return _render_questions(request, session, quiz, question_id)
+
+
+@router.get("/quizzes/{quiz_id}/scoring", response_class=HTMLResponse)
+def scoring_page(quiz_id: int, request: Request, session: Session = Depends(get_session)):
+    quiz = _load(session, quiz_id)
+    return templates.TemplateResponse(
+        request,
+        "admin/scoring.html",
+        {
+            "quiz": quiz,
+            "active": "scoring",
             "dimensions": quizzes_admin.get_dimensions(session, quiz_id),
-            "questions": questions,
             "tiers": quizzes_admin.get_tiers(session, quiz_id),
         },
+    )
+
+
+@router.get("/quizzes/{quiz_id}/landing", response_class=HTMLResponse)
+def landing_page(quiz_id: int, request: Request, session: Session = Depends(get_session)):
+    quiz = _load(session, quiz_id)
+    return templates.TemplateResponse(
+        request,
+        "admin/landing.html",
+        {"quiz": quiz, "active": "landing", "landing": quizzes_admin.get_landing(session, quiz_id)},
+    )
+
+
+@router.get("/quizzes/{quiz_id}/results", response_class=HTMLResponse)
+def results_page(quiz_id: int, request: Request, session: Session = Depends(get_session)):
+    quiz = _load(session, quiz_id)
+    return templates.TemplateResponse(
+        request,
+        "admin/results.html",
+        {
+            "quiz": quiz,
+            "active": "results",
+            "result_cfg": quizzes_admin.get_result_config(session, quiz_id),
+        },
+    )
+
+
+@router.get("/quizzes/{quiz_id}/settings", response_class=HTMLResponse)
+def settings_page(quiz_id: int, request: Request, session: Session = Depends(get_session)):
+    quiz = _load(session, quiz_id)
+    return templates.TemplateResponse(
+        request, "admin/settings.html", {"quiz": quiz, "active": "settings"}
     )
 
 
@@ -126,29 +287,35 @@ def edit_quiz(quiz_id: int, request: Request, session: Session = Depends(get_ses
 def update_meta(
     quiz_id: int,
     request: Request,
-    slug: str = Form(...),
+    slug: str = Form(""),
     title_de: str = Form(""),
     title_en: str = Form(""),
     default_lang: str = Form("de"),
-    estimated_minutes: int = Form(3),
+    estimated_minutes: str = Form("3"),
     session: Session = Depends(get_session),
 ):
+    if not slug.strip():
+        return _invalid(request, quiz_id, "Adresse (Slug) darf nicht leer sein.")
+    try:
+        minutes = _parse_int(estimated_minutes)
+    except ValueError:
+        return _invalid(request, quiz_id, "Dauer muss eine ganze Zahl sein.")
     quizzes_admin.update_quiz_meta(
         session,
         quiz_id,
-        slug=slug,
+        slug=slug.strip(),
         title_de=title_de,
         title_en=title_en,
         default_lang=default_lang,
-        estimated_minutes=estimated_minutes,
+        estimated_minutes=minutes,
     )
     return _saved(request, quiz_id)
 
 
 @router.post("/quizzes/{quiz_id}/publish")
-def publish(quiz_id: int, session: Session = Depends(get_session)):
+def publish(quiz_id: int, request: Request, session: Session = Depends(get_session)):
     quizzes_admin.toggle_publish(session, quiz_id)
-    return _back(quiz_id)
+    return _redirect_back(request, quiz_id)
 
 
 @router.post("/quizzes/{quiz_id}/clone")
@@ -227,21 +394,23 @@ def update_result(
 def add_dimension(
     quiz_id: int,
     request: Request,
-    key: str = Form(...),
     name_de: str = Form(""),
     name_en: str = Form(""),
     weight: str = Form("1.0"),
+    key: str = Form(""),
     session: Session = Depends(get_session),
 ):
     try:
         w = _parse_weight(weight)
     except ValueError:
         return _invalid(request, quiz_id, "Gewicht muss eine Zahl sein (z. B. 0,5).")
-    quizzes_admin.add_dimension(session, quiz_id, key, name_de, name_en, w)
+    # The user no longer types a "Key" — derive a stable internal code from the name.
+    code = key.strip() or _slugify(name_de) or _slugify(name_en) or "bereich"
+    quizzes_admin.add_dimension(session, quiz_id, code, name_de, name_en, w)
     if _is_inline(request):
         d = quizzes_admin.get_dimensions(session, quiz_id)[-1]
         return _fragment(request, session, quiz_id, "admin/_dimension_row.html", {"d": d})
-    return _back(quiz_id)
+    return _redirect_back(request, quiz_id)
 
 
 @router.post("/dimensions/{dim_id}")
@@ -265,8 +434,10 @@ def update_dimension(
     )
     if _is_inline(request):
         d = quizzes_admin.get_dimension(session, dim_id)
+        if d is None:
+            return Response(status_code=404)
         return _fragment(request, session, quiz_id, "admin/_dimension_row.html", {"d": d})
-    return _back(quiz_id)
+    return _redirect_back(request, quiz_id)
 
 
 @router.post("/dimensions/{dim_id}/delete")
@@ -295,16 +466,10 @@ def add_question(
     if dimension_id is None:
         return _invalid(request, quiz_id, "Bitte zuerst eine Dimension anlegen.")
     quizzes_admin.add_question(session, quiz_id, dimension_id, text_de, text_en)
-    if _is_inline(request):
-        q = quizzes_admin.get_questions(session, quiz_id)[-1]
-        return _fragment(
-            request,
-            session,
-            quiz_id,
-            "admin/_question_card.html",
-            {"q": q, "options": [], "dimensions": quizzes_admin.get_dimensions(session, quiz_id)},
-        )
-    return _back(quiz_id)
+    # Adding a question is full-page navigation in the studio: jump straight into
+    # the new question's editor (master-detail right pane).
+    new_q = quizzes_admin.get_questions(session, quiz_id)[-1]
+    return RedirectResponse(f"/admin/quizzes/{quiz_id}/questions/{new_q.id}", status_code=303)
 
 
 @router.post("/questions/{question_id}")
@@ -332,6 +497,8 @@ def update_question(
     )
     if _is_inline(request):
         q = quizzes_admin.get_question(session, question_id)
+        if q is None:
+            return Response(status_code=404)
         return _fragment(
             request,
             session,
@@ -339,7 +506,7 @@ def update_question(
             "admin/_question_form.html",
             {"q": q, "dimensions": quizzes_admin.get_dimensions(session, quiz_id)},
         )
-    return _back(quiz_id)
+    return _redirect_back(request, quiz_id)
 
 
 @router.post("/questions/{question_id}/delete")
@@ -350,7 +517,10 @@ def delete_question(
     session: Session = Depends(get_session),
 ):
     quizzes_admin.delete_question(session, question_id)
-    return _saved(request, quiz_id)
+    if _is_inline(request):
+        return Response(status_code=204)
+    # Full-page navigation: the focused question is gone — back to the list.
+    return RedirectResponse(f"/admin/quizzes/{quiz_id}/questions", status_code=303)
 
 
 @router.post("/questions/{question_id}/options")
@@ -373,7 +543,7 @@ def add_option(
     if _is_inline(request):
         o = quizzes_admin.get_options(session, question_id)[-1]
         return _fragment(request, session, quiz_id, "admin/_option_row.html", {"o": o})
-    return _back(quiz_id)
+    return _redirect_back(request, quiz_id)
 
 
 @router.post("/options/{option_id}")
@@ -398,8 +568,10 @@ def update_option(
     )
     if _is_inline(request):
         o = quizzes_admin.get_option(session, option_id)
+        if o is None:
+            return Response(status_code=404)
         return _fragment(request, session, quiz_id, "admin/_option_row.html", {"o": o})
-    return _back(quiz_id)
+    return _redirect_back(request, quiz_id)
 
 
 @router.post("/options/{option_id}/delete")
@@ -434,7 +606,7 @@ def add_tier(
     if _is_inline(request):
         t = quizzes_admin.get_tiers(session, quiz_id)[-1]
         return _fragment(request, session, quiz_id, "admin/_tier_card.html", {"t": t})
-    return _back(quiz_id)
+    return _redirect_back(request, quiz_id)
 
 
 @router.post("/tiers/{tier_id}")
@@ -480,8 +652,10 @@ def update_tier(
     )
     if _is_inline(request):
         t = quizzes_admin.get_tier(session, tier_id)
+        if t is None:
+            return Response(status_code=404)
         return _fragment(request, session, quiz_id, "admin/_tier_card.html", {"t": t})
-    return _back(quiz_id)
+    return _redirect_back(request, quiz_id)
 
 
 @router.post("/tiers/{tier_id}/delete")
@@ -504,7 +678,11 @@ def leads(quiz_id: int, request: Request, session: Session = Depends(get_session
     return templates.TemplateResponse(
         request,
         "admin/leads.html",
-        {"quiz": quiz, "leads": submissions_service.list_submissions(session, quiz_id)},
+        {
+            "quiz": quiz,
+            "active": "leads",
+            "leads": submissions_service.list_submissions(session, quiz_id),
+        },
     )
 
 

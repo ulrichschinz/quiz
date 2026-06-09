@@ -1,24 +1,31 @@
-{# One result-tier (Auswertung) editor card. Rendered inline AND returned as the
-   inline-save fragment (replace target = the wrapping [data-replace]/[data-card]).
-   Fields mirror the update_tier route. #}
-<div class="ws-card" data-card data-replace>
-  <form method="post" action="/admin/tiers/{{ t.id }}" class="ar-form-grid" style="align-items:end;" data-inline>
+{# One Bewertungs-Stufe (result tier) card. Inline-save replace target = the
+   wrapping [data-replace]/[data-card]. Field names mirror update_tier. The
+   optional button fields hide under a disclosure. #}
+<div class="tier-card" data-card data-replace>
+  <form method="post" action="/admin/tiers/{{ t.id }}" class="admin-form" data-inline style="max-width:none;">
     <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
-    <div class="ar-field"><label class="ar-eyebrow">Name (DE)</label><input name="name_de" value="{{ t.name_de }}"></div>
-    <div class="ar-field"><label class="ar-eyebrow">Name (EN)</label><input name="name_en" value="{{ t.name_en }}"></div>
-    <div class="ar-field"><label class="ar-eyebrow">Min</label><input name="min_score" type="number" value="{{ t.min_score }}"></div>
-    <div class="ar-field"><label class="ar-eyebrow">Max</label><input name="max_score" type="number" value="{{ t.max_score }}"></div>
-    <div class="ar-field"><label class="ar-eyebrow">Pos.</label><input name="position" type="number" value="{{ t.position }}"></div>
-    <div class="ar-field full"><label class="ar-eyebrow">Headline (DE)</label><input name="headline_de" value="{{ t.headline_de }}"></div>
-    <div class="ar-field full"><label class="ar-eyebrow">Headline (EN)</label><input name="headline_en" value="{{ t.headline_en }}"></div>
-    <div class="ar-field full"><label class="ar-eyebrow">Text (DE)</label><textarea name="body_de" rows="2">{{ t.body_de }}</textarea></div>
-    <div class="ar-field full"><label class="ar-eyebrow">Text (EN)</label><textarea name="body_en" rows="2">{{ t.body_en }}</textarea></div>
-    <div class="ar-field"><label class="ar-eyebrow">CTA (DE)</label><input name="cta_label_de" value="{{ t.cta_label_de or '' }}"></div>
-    <div class="ar-field"><label class="ar-eyebrow">CTA (EN)</label><input name="cta_label_en" value="{{ t.cta_label_en or '' }}"></div>
-    <div class="ar-field full"><label class="ar-eyebrow">CTA-URL</label><input name="cta_url" value="{{ t.cta_url or '' }}"></div>
-    <div class="ar-field" style="flex-direction:row; gap:6px;">
-      <button class="ar-btn ar-btn-primary">Speichern</button>
-      <button formaction="/admin/tiers/{{ t.id }}/delete" data-mode="remove" class="ar-btn ar-btn-ghost">✕</button>
+    <input type="hidden" name="position" value="{{ t.position }}">
+    <div class="tier-head">
+      <div class="ar-field"><label>Name der Stufe (Deutsch)</label><input name="name_de" value="{{ t.name_de }}"></div>
+      <div class="ar-field"><label>Name (Englisch)</label><input name="name_en" value="{{ t.name_en }}"></div>
+      <div class="ar-field"><label>Score von</label><input name="min_score" type="number" value="{{ t.min_score }}"></div>
+      <div class="ar-field"><label>bis</label><input name="max_score" type="number" value="{{ t.max_score }}"></div>
+    </div>
+    <div class="ar-field"><label>Überschrift (Deutsch)</label><input name="headline_de" value="{{ t.headline_de }}"></div>
+    <div class="ar-field"><label>Überschrift (Englisch)</label><input name="headline_en" value="{{ t.headline_en }}"></div>
+    <div class="ar-field"><label>Auswertungs-Text (Deutsch)</label><textarea name="body_de" rows="2">{{ t.body_de }}</textarea></div>
+    <div class="ar-field"><label>Auswertungs-Text (Englisch)</label><textarea name="body_en" rows="2">{{ t.body_en }}</textarea></div>
+    <details class="admin-advanced">
+      <summary>Button (optional)</summary>
+      <div style="margin-top: var(--ar-space-3); display:flex; flex-direction:column; gap: var(--ar-space-4);">
+        <div class="ar-field"><label>Button-Text (Deutsch)</label><input name="cta_label_de" value="{{ t.cta_label_de or '' }}"></div>
+        <div class="ar-field"><label>Button-Text (Englisch)</label><input name="cta_label_en" value="{{ t.cta_label_en or '' }}"></div>
+        <div class="ar-field"><label>Button-Link</label><input name="cta_url" value="{{ t.cta_url or '' }}" placeholder="https://…"></div>
+      </div>
+    </details>
+    <div class="opt-actions">
+      <button class="ar-btn ar-btn-primary">Stufe speichern</button>
+      <button formaction="/admin/tiers/{{ t.id }}/delete" data-mode="remove" class="ar-btn ar-btn-ghost">Löschen</button>
     </div>
   </form>
 </div>

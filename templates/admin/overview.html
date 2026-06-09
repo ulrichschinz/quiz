@@ -1,0 +1,61 @@
+{% extends "admin/_studio.html" %}
+{% block studio_main %}
+<h2 class="studio-area-title">Übersicht</h2>
+<p class="studio-area-intro">Der Stand deines Quiz auf einen Blick — und was noch fehlt, bis es startklar ist.</p>
+
+<div class="tile-grid">
+  <a class="tile" href="/admin/quizzes/{{ quiz.id }}/questions">
+    <span class="tile-num">{{ stats.questions }}</span>
+    <span class="tile-label">Fragen</span>
+  </a>
+  <a class="tile" href="/admin/quizzes/{{ quiz.id }}/scoring">
+    <span class="tile-num">{{ stats.dimensions }}</span>
+    <span class="tile-label">Bereiche</span>
+  </a>
+  <a class="tile" href="/admin/quizzes/{{ quiz.id }}/leads">
+    <span class="tile-num">{{ stats.leads }}</span>
+    <span class="tile-label">Leads</span>
+  </a>
+  <div class="tile">
+    <span class="tile-num">{{ percent }} %</span>
+    <span class="tile-label">vollständig</span>
+  </div>
+</div>
+
+<div class="panel">
+  <h3 class="panel-title">Startklar?</h3>
+  <div class="bar-label"><span>Vollständigkeit</span><span>{{ percent }} %</span></div>
+  <div class="bar" style="margin-bottom: var(--ar-space-5);"><span style="width: {{ percent }}%;"></span></div>
+  <ul class="checklist">
+    {% for item in checklist %}
+    <li>
+      <span class="mark {{ 'ok' if item.done else 'todo' }}">{{ '✓' if item.done else '◷' }}</span>
+      <span>{{ item.label }}</span>
+      {% if not item.done %}<a href="{{ item.link }}">erledigen →</a>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+
+<div class="panel">
+  <h3 class="panel-title">Letzte Leads</h3>
+  {% if recent_leads %}
+  <table class="lead-table">
+    <thead><tr><th>Datum</th><th>E-Mail</th><th>Score</th><th>Auswertung</th></tr></thead>
+    <tbody>
+      {% for r in recent_leads %}
+      <tr>
+        <td class="meta-time">{{ r.created_at.strftime('%d.%m.%Y') }}</td>
+        <td>{{ r.email or '—' }}</td>
+        <td class="score-badge">{{ r.overall_score }}</td>
+        <td>{{ r.tier_name or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p style="margin-top: var(--ar-space-4);"><a class="ar-btn ar-btn-ghost" href="/admin/quizzes/{{ quiz.id }}/leads">Alle Leads ansehen</a></p>
+  {% else %}
+  <p style="color: var(--ar-mute); margin:0;">Noch keine Leads. Sobald jemand das Quiz abschließt, erscheint er hier.</p>
+  {% endif %}
+</div>
+{% endblock %}
