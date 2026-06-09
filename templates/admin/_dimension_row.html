@@ -1,0 +1,17 @@
+{# One dimension editor row. Rendered inline AND returned as the inline-save
+   fragment (replace target = the wrapping [data-replace]/[data-card]). Fields
+   mirror the update_dimension route. #}
+<div class="ws-card ws-card-sub" data-card data-replace>
+  <form method="post" action="/admin/dimensions/{{ d.id }}" class="ar-form-grid" style="align-items:end;" data-inline>
+    <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
+    <div class="ar-field"><label class="ar-eyebrow">Key</label><input name="key" value="{{ d.key }}"></div>
+    <div class="ar-field"><label class="ar-eyebrow">Name (DE)</label><input name="name_de" value="{{ d.name_de }}"></div>
+    <div class="ar-field"><label class="ar-eyebrow">Name (EN)</label><input name="name_en" value="{{ d.name_en }}"></div>
+    <div class="ar-field"><label class="ar-eyebrow">Gewicht</label><input name="weight" inputmode="decimal" value="{{ d.weight }}"></div>
+    <div class="ar-field"><label class="ar-eyebrow">Pos.</label><input name="position" type="number" value="{{ d.position }}"></div>
+    <div class="ar-field" style="flex-direction:row; gap:6px;">
+      <button class="ar-btn ar-btn-primary">OK</button>
+      <button formaction="/admin/dimensions/{{ d.id }}/delete" data-mode="remove" class="ar-btn ar-btn-ghost">✕</button>
+    </div>
+  </form>
+</div>

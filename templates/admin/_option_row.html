@@ -1,0 +1,16 @@
+{# One answer-option editor row. Rendered inline in the questions list AND
+   returned standalone as the inline-save fragment (replace target = the
+   wrapping [data-replace]/[data-card]). Fields mirror the update_option route. #}
+<div class="ws-card ws-card-sub" data-card data-replace>
+  <form method="post" action="/admin/options/{{ o.id }}" class="ar-form-grid" style="align-items:end;" data-inline>
+    <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
+    <div class="ar-field"><label class="ar-eyebrow">Option (DE)</label><input name="label_de" value="{{ o.label_de }}"></div>
+    <div class="ar-field"><label class="ar-eyebrow">Option (EN)</label><input name="label_en" value="{{ o.label_en }}"></div>
+    <div class="ar-field"><label class="ar-eyebrow">Gewicht 0–1</label><input name="weight" inputmode="decimal" value="{{ o.weight }}"></div>
+    <div class="ar-field"><label class="ar-eyebrow">Pos.</label><input name="position" type="number" value="{{ o.position }}"></div>
+    <div class="ar-field" style="flex-direction:row; gap:6px;">
+      <button class="ar-btn ar-btn-primary">OK</button>
+      <button formaction="/admin/options/{{ o.id }}/delete" data-mode="remove" class="ar-btn ar-btn-ghost">✕</button>
+    </div>
+  </form>
+</div>

@@ -214,6 +214,10 @@ def get_dimensions(session: Session, quiz_id: int) -> list[Dimension]:
     )
 
 
+def get_dimension(session: Session, dim_id: int) -> Dimension | None:
+    return session.get(Dimension, dim_id)
+
+
 def add_dimension(
     session: Session, quiz_id: int, key: str, name_de: str, name_en: str, weight: float
 ) -> None:
@@ -268,6 +272,14 @@ def get_questions(session: Session, quiz_id: int) -> list[Question]:
             select(Question).where(Question.quiz_id == quiz_id).order_by(col(Question.position))
         ).all()
     )
+
+
+def get_question(session: Session, question_id: int) -> Question | None:
+    return session.get(Question, question_id)
+
+
+def get_option(session: Session, option_id: int) -> AnswerOption | None:
+    return session.get(AnswerOption, option_id)
 
 
 def get_options(session: Session, question_id: int) -> list[AnswerOption]:
@@ -361,6 +373,10 @@ def get_tiers(session: Session, quiz_id: int) -> list[ResultTier]:
             .order_by(col(ResultTier.position))
         ).all()
     )
+
+
+def get_tier(session: Session, tier_id: int) -> ResultTier | None:
+    return session.get(ResultTier, tier_id)
 
 
 def add_tier(

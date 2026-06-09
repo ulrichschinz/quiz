@@ -68,3 +68,122 @@
   background: var(--ar-plum);
   border-radius: var(--ar-radius-pill);
 }
+
+/* --- Admin workspace (inline-save editor) ----------------------------- */
+/* Cards keep the current flat editor look — just grouping + the save-state
+   marker. Section spacing matches the old per-form margins. */
+.ws-card {
+  margin-top: var(--ar-space-5);
+  padding-top: var(--ar-space-4);
+  border-top: 1px solid var(--ar-hairline);
+}
+.ws-card-sub {
+  margin-top: var(--ar-space-3);
+  padding-top: var(--ar-space-3);
+  border-top: 1px dashed var(--ar-hairline);
+}
+
+/* The "• ungespeichert / speichert … / ✓ gespeichert / error" marker, injected
+   by admin-workspace.js as the last child of each inline form. */
+.ws-status {
+  align-self: center;
+  font-family: var(--ar-font-mono, monospace);
+  font-size: var(--ar-small, 0.8rem);
+  white-space: nowrap;
+}
+.ws-status-dirty {
+  color: var(--ar-coral);
+}
+.ws-status-saving {
+  opacity: 0.6;
+}
+.ws-status-saved {
+  color: var(--ar-plum);
+}
+.ws-status-error {
+  color: var(--ar-coral);
+  font-weight: 600;
+}
+
+/* --- Phase 2: section rail ---------------------------------------------- */
+/* Progressive enhancement: only when JS adds `ws-on` to <body> do we collapse
+   to one section at a time. Without JS every section stays visible. */
+.ws-nav {
+  position: sticky;
+  top: 64px; /* clear the 64px sticky site nav (.ar-nav, z-index 50) above it */
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ar-space-2);
+  margin-top: var(--ar-space-6);
+  padding: var(--ar-space-3) 0;
+  background: var(--ar-paper);
+  border-bottom: 1px solid var(--ar-hairline);
+}
+.ws-nav button {
+  font: inherit;
+  font-family: var(--ar-font-mono, monospace);
+  font-size: var(--ar-small, 0.8rem);
+  padding: var(--ar-space-2) var(--ar-space-3);
+  border: 1px solid var(--ar-hairline);
+  border-radius: var(--ar-radius-pill);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.ws-nav button.ws-active {
+  background: var(--ar-plum);
+  color: var(--ar-paper);
+  border-color: var(--ar-plum);
+}
+body.ws-on [data-ws-section] {
+  display: none;
+}
+body.ws-on [data-ws-section].ws-active {
+  display: block;
+}
+
+/* --- Phase 2: collapsible question cards ------------------------------- */
+/* NOTE: deliberately NOT .ar-card — the brand kit lifts .ar-card on hover
+   (transform: translateY(-4px)), which would make every question jitter. */
+.ws-question {
+  margin-top: var(--ar-space-4);
+  border: 1px solid var(--ar-hairline);
+  border-radius: var(--ar-radius-md);
+  padding: 0 var(--ar-space-5) var(--ar-space-4);
+}
+.ws-question > .ws-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--ar-space-3);
+  padding: var(--ar-space-4) 0;
+  cursor: pointer;
+  list-style: none;
+}
+.ws-question > .ws-summary::-webkit-details-marker {
+  display: none;
+}
+.ws-summary-pos {
+  font-family: var(--ar-font-mono, monospace);
+  opacity: 0.55;
+}
+.ws-summary-title {
+  flex: 1;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-chip {
+  font-family: var(--ar-font-mono, monospace);
+  font-size: var(--ar-small, 0.8rem);
+  padding: 2px var(--ar-space-2);
+  border: 1px solid var(--ar-hairline);
+  border-radius: var(--ar-radius-pill);
+}
+.ws-badge {
+  font-family: var(--ar-font-mono, monospace);
+  font-size: var(--ar-small, 0.8rem);
+  opacity: 0.55;
+  white-space: nowrap;
+}
