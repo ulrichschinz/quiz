@@ -11,8 +11,8 @@ that changes the structure.
 | ----------------- | ---- |
 | Domains           | 2    |
 | Route-Module      | 4    |
-| HTTP-Endpoints    | 34   |
-| HTML-Templates    | 13   |
+| HTTP-Endpoints    | 40   |
+| HTML-Templates    | 18   |
 | SQLModel-Tabellen | 8    |
 
 - **Domains** — sub-packages under `app/domains/` (`quizzes`, `submissions`).

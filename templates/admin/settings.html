@@ -1,0 +1,29 @@
+{% extends "admin/_studio.html" %}
+{% block studio_main %}
+<h2 class="studio-area-title">Einstellungen</h2>
+<p class="studio-area-intro">Grunddaten des Quiz.</p>
+
+<div class="panel">
+  <form method="post" action="/admin/quizzes/{{ quiz.id }}/meta" class="admin-form" style="max-width:none;" data-inline data-mode="save">
+    <div class="ar-field"><label>Titel (Deutsch)</label><input name="title_de" value="{{ quiz.title_de }}"></div>
+    <div class="ar-field"><label>Titel (Englisch)</label><input name="title_en" value="{{ quiz.title_en }}"></div>
+    <div class="ar-field"><label>Geschätzte Dauer (Minuten)</label><input name="estimated_minutes" type="number" value="{{ quiz.estimated_minutes }}"></div>
+    <details class="admin-advanced">
+      <summary>Erweitert</summary>
+      <div style="margin-top: var(--ar-space-3); display:flex; flex-direction:column; gap: var(--ar-space-4);">
+        <div class="ar-field"><label>Adresse (Slug)</label><input name="slug" value="{{ quiz.slug }}"><p class="admin-hint">Teil der URL: /q/<em>slug</em> — vorsichtig ändern, alte Links brechen.</p></div>
+        <div class="ar-field" style="max-width:200px;"><label>Standard-Sprache</label><input name="default_lang" value="{{ quiz.default_lang }}"><p class="admin-hint">„de" oder „en".</p></div>
+      </div>
+    </details>
+    <div><button class="ar-btn ar-btn-primary">Einstellungen speichern</button></div>
+  </form>
+</div>
+
+<div class="panel" style="border-color: color-mix(in srgb, var(--ar-coral) 35%, var(--ar-hairline));">
+  <h3 class="panel-title">Quiz löschen</h3>
+  <p class="admin-hint" style="margin-bottom: var(--ar-space-4);">Entfernt das Quiz mit allen Fragen, Bereichen, Stufen und Konfigurationen. Leads bleiben in der Datenbank. Das lässt sich nicht rückgängig machen.</p>
+  <form method="post" action="/admin/quizzes/{{ quiz.id }}/delete" onsubmit="return confirm('Dieses Quiz wirklich endgültig löschen?');">
+    <button class="ar-btn ar-btn-ghost" style="color: var(--ar-coral); border-color: color-mix(in srgb, var(--ar-coral) 40%, transparent);">Quiz endgültig löschen</button>
+  </form>
+</div>
+{% endblock %}

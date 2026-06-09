@@ -1,0 +1,68 @@
+{% extends "admin/_studio.html" %}
+{% block studio_main %}
+<h2 class="studio-area-title">Fragen &amp; Antworten</h2>
+<p class="studio-area-intro">Links die Übersicht aller Fragen, gruppiert nach Bereich. Klicke eine Frage an, um sie rechts in Ruhe zu bearbeiten.</p>
+
+{% if not dimensions %}
+<div class="studio-empty">
+  <div class="big">Erst ein Bereich, dann Fragen.</div>
+  <p>Fragen gehören jeweils in einen Themenbereich. Lege zuerst unter
+     <a href="/admin/quizzes/{{ quiz.id }}/scoring">Bewertung</a> mindestens einen Bereich an.</p>
+</div>
+{% else %}
+<div class="qedit">
+  {# ---- Master list ---- #}
+  <div class="qlist">
+    {% for g in groups %}
+    <div class="qlist-group">{{ g.dimension.name_de or g.dimension.key }}</div>
+    {% for it in g.questions %}
+    <a class="qlist-item {{ 'active' if focused and focused.q.id == it.q.id }}"
+       href="/admin/quizzes/{{ quiz.id }}/questions/{{ it.q.id }}">
+      {% if not it.has_options %}<span class="q-warn" title="Noch keine Antworten"></span>{% endif %}
+      <span class="q-text">{{ it.q.text_de or 'Ohne Titel' }}</span>
+      <span class="q-meta">{{ it.option_count }}</span>
+    </a>
+    {% endfor %}
+    <form method="post" action="/admin/quizzes/{{ quiz.id }}/questions">
+      <input type="hidden" name="dimension_id" value="{{ g.dimension.id }}">
+      <button class="qlist-add" type="submit">+ Frage in „{{ g.dimension.name_de or g.dimension.key }}"</button>
+    </form>
+    {% endfor %}
+  </div>
+
+  {# ---- Detail editor ---- #}
+  <div class="qdetail">
+    {% if focused %}
+    {% with q = focused.q %}{% include "admin/_question_form.html" %}{% endwith %}
+
+    <h3 class="qdetail-sub">Antworten</h3>
+    <p class="admin-hint" style="margin: 0 0 var(--ar-space-3);">Gewicht: 0 = trifft nicht zu · 1 = voll erfüllt. Wie stark eine Antwort zählt.</p>
+    <div data-options>
+      {% for o in focused.options %}{% include "admin/_option_row.html" %}{% endfor %}
+      <form class="opt-add" method="post" action="/admin/questions/{{ focused.q.id }}/options" data-inline data-mode="append">
+        <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
+        <div class="opt-grid">
+          <div class="ar-field"><label>Neue Antwort (Deutsch)</label><input name="label_de"></div>
+          <div class="ar-field"><label>(Englisch)</label><input name="label_en"></div>
+          <div class="ar-field opt-weight"><label>Gewicht</label><input name="weight" inputmode="decimal" value="0.0"></div>
+          <div class="opt-actions"><button class="ar-btn ar-btn-ghost">+ Antwort</button></div>
+        </div>
+      </form>
+    </div>
+
+    <form method="post" action="/admin/questions/{{ focused.q.id }}/delete"
+          style="margin-top: var(--ar-space-10);"
+          onsubmit="return confirm('Diese Frage und ihre Antworten wirklich löschen?');">
+      <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
+      <button class="ar-btn ar-btn-ghost">Frage löschen</button>
+    </form>
+    {% else %}
+    <div class="studio-empty">
+      <div class="big">Wähle links eine Frage.</div>
+      <p>…oder lege mit „+ Frage" eine neue an. Jede Frage öffnet sich hier zum Bearbeiten.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

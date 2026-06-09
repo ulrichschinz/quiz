@@ -1,0 +1,21 @@
+{% extends "admin/_studio.html" %}
+{% block studio_main %}
+<h2 class="studio-area-title">Ergebnis-Seite</h2>
+<p class="studio-area-intro">Was Besucher nach dem Quiz sehen — und welche E-Mail sie und dein Team bekommen.</p>
+
+<div class="panel">
+  <form method="post" action="/admin/quizzes/{{ quiz.id }}/result" class="admin-form" style="max-width:none;" data-inline data-mode="save">
+    <div class="ar-field"><label>Einleitung (Deutsch)</label><input name="intro_de" value="{{ result_cfg.intro_de if result_cfg }}"><p class="admin-hint">Kurzer Satz über dem Ergebnis.</p></div>
+    <div class="ar-field"><label>Einleitung (Englisch)</label><input name="intro_en" value="{{ result_cfg.intro_en if result_cfg }}"></div>
+    <div class="ar-field" style="flex-direction:row; gap:8px; align-items:center;">
+      <input type="checkbox" name="show_dimension_breakdown" id="sdb" style="width:auto;" {{ 'checked' if (result_cfg and result_cfg.show_dimension_breakdown) }}>
+      <label for="sdb" style="margin:0;">Aufschlüsselung nach Bereichen anzeigen</label>
+    </div>
+    <div class="ar-field"><label>E-Mail-Betreff (Deutsch)</label><input name="email_subject_de" value="{{ result_cfg.email_subject_de if result_cfg }}"><p class="admin-hint">Platzhalter: {score}</p></div>
+    <div class="ar-field"><label>E-Mail-Betreff (Englisch)</label><input name="email_subject_en" value="{{ result_cfg.email_subject_en if result_cfg }}"></div>
+    <div class="ar-field"><label>E-Mail-Text</label><textarea name="email_body_template" rows="4">{{ result_cfg.email_body_template if result_cfg }}</textarea><p class="admin-hint">Platzhalter: {name} {score} {tier} {url}</p></div>
+    <div class="ar-field"><label>Team-Benachrichtigung</label><input name="notify_emails" value="{{ result_cfg.notify_emails if result_cfg }}"><p class="admin-hint">Mehrere E-Mail-Adressen mit Komma trennen.</p></div>
+    <div><button class="ar-btn ar-btn-primary">Ergebnis-Seite speichern</button></div>
+  </form>
+</div>
+{% endblock %}

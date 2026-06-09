@@ -1,23 +1,36 @@
-{# The question's own editable fields — the inline-save replace target inside a
-   question card. Returned standalone as the update_question fragment. Needs
-   `q`, `quiz`, `dimensions`. Help fields are hidden inputs so a fragment save
-   never blanks help text the route persists. #}
+{# The question's own editable fields — inline-save replace target inside the
+   master-detail editor. Returned standalone as the update_question fragment.
+   Needs `q`, `quiz`, `dimensions`. Help texts ride along as hidden inputs so a
+   fragment save never blanks them. Deleting a question is a separate full-page
+   form in questions.html (it navigates away). #}
 <div data-replace data-question-form>
-  <form method="post" action="/admin/questions/{{ q.id }}" class="ar-form-grid" style="align-items:end;" data-inline>
+  <form method="post" action="/admin/questions/{{ q.id }}" class="admin-form" data-inline>
     <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
     <input type="hidden" name="help_de" value="{{ q.help_de or '' }}">
     <input type="hidden" name="help_en" value="{{ q.help_en or '' }}">
-    <div class="ar-field full"><label class="ar-eyebrow">Frage (DE)</label><input name="text_de" value="{{ q.text_de }}"></div>
-    <div class="ar-field full"><label class="ar-eyebrow">Frage (EN)</label><input name="text_en" value="{{ q.text_en }}"></div>
-    <div class="ar-field"><label class="ar-eyebrow">Dimension</label>
+    <div class="ar-field">
+      <label>Frage (Deutsch)</label>
+      <input name="text_de" value="{{ q.text_de }}" placeholder="z. B. Wie klar ist eure KI-Strategie?">
+    </div>
+    <div class="ar-field">
+      <label>Frage (Englisch)</label>
+      <input name="text_en" value="{{ q.text_en }}">
+    </div>
+    <div class="ar-field">
+      <label>Gehört zu</label>
       <select name="dimension_id">
         {% for d in dimensions %}<option value="{{ d.id }}" {{ 'selected' if d.id == q.dimension_id }}>{{ d.name_de or d.key }}</option>{% endfor %}
       </select>
+      <p class="admin-hint">In welchen Themenbereich diese Frage einzahlt.</p>
     </div>
-    <div class="ar-field"><label class="ar-eyebrow">Pos.</label><input name="position" type="number" value="{{ q.position }}"></div>
-    <div class="ar-field" style="flex-direction:row; gap:6px;">
-      <button class="ar-btn ar-btn-primary">OK</button>
-      <button formaction="/admin/questions/{{ q.id }}/delete" data-mode="remove" class="ar-btn ar-btn-ghost">✕ Frage</button>
-    </div>
+    <details class="admin-advanced">
+      <summary>Erweitert</summary>
+      <div class="ar-field" style="margin-top: var(--ar-space-3); max-width: 220px;">
+        <label>Reihenfolge</label>
+        <input name="position" type="number" value="{{ q.position }}">
+        <p class="admin-hint">Position im Quiz (kleiner = früher).</p>
+      </div>
+    </details>
+    <div><button class="ar-btn ar-btn-primary">Frage speichern</button></div>
   </form>
 </div>

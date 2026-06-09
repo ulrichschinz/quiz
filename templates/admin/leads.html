@@ -1,56 +1,40 @@
-{% extends "base.html" %}
-{% block title %}Admin · Leads{% endblock %}
+{% extends "admin/_studio.html" %}
+{% block studio_main %}
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap: var(--ar-space-3); margin-bottom: var(--ar-space-2);">
+  <h2 class="studio-area-title" style="margin:0;">Leads</h2>
+  <a href="/admin/quizzes/{{ quiz.id }}/leads.csv" class="ar-btn ar-btn-ghost">CSV exportieren</a>
+</div>
+<p class="studio-area-intro">Alle, die das Quiz abgeschlossen haben.</p>
 
-{% block nav_cta %}
-<form method="post" action="/logout" style="display:inline;">
-  <button type="submit" class="ar-btn ar-btn-ghost">Abmelden</button>
-</form>
-{% endblock %}
-
-{% block content %}
-<section class="ar-container" style="padding: var(--ar-space-10) 0; max-width: 1040px;">
-  <a href="/admin/quizzes/{{ quiz.id }}" class="ar-mono ar-small">// ← Zurück zum Editor</a>
-  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap: var(--ar-space-3);">
-    <h1 class="ar-display-s" style="margin-top: var(--ar-space-1);">Leads · {{ quiz.title_de or quiz.slug }}</h1>
-    <a href="/admin/quizzes/{{ quiz.id }}/leads.csv" class="ar-btn ar-btn-coral">CSV exportieren</a>
-  </div>
-
-  <div class="ar-card" style="margin-top: var(--ar-space-6); padding: var(--ar-space-4); overflow-x:auto;">
-    <table style="width:100%; border-collapse:collapse;" class="ar-small">
-      <thead>
-        <tr style="text-align:left; border-bottom:1px solid var(--ar-hairline);">
-          <th style="padding:8px;">Datum</th>
-          <th style="padding:8px;">E-Mail</th>
-          <th style="padding:8px;">Firma</th>
-          <th style="padding:8px;">Score</th>
-          <th style="padding:8px;">Tier</th>
-          <th style="padding:8px;">CRM</th>
-          <th style="padding:8px;">E-Mail</th>
-          <th style="padding:8px;"></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for l in leads %}
-        <tr style="border-bottom:1px solid var(--ar-hairline);">
-          <td style="padding:8px;" class="ar-mono">{{ l.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-          <td style="padding:8px;">{{ l.email or '—' }}{% if l.name %}<br><span style="opacity:.6;">{{ l.name }}</span>{% endif %}</td>
-          <td style="padding:8px;">{{ l.company or '—' }}</td>
-          <td style="padding:8px;"><strong>{{ l.overall_score }}</strong></td>
-          <td style="padding:8px;">{{ l.tier_name or '—' }}</td>
-          <td style="padding:8px;">{% if l.crm_pushed %}<span style="color:var(--ar-coral);">✓</span>{% elif l.crm_error %}<span title="{{ l.crm_error }}">⚠</span>{% else %}—{% endif %}</td>
-          <td style="padding:8px;">{% if l.email_sent %}<span style="color:var(--ar-coral);">✓</span>{% elif l.email_error %}<span title="{{ l.email_error }}">⚠</span>{% else %}—{% endif %}</td>
-          <td style="padding:8px;">
-            <form method="post" action="/admin/submissions/{{ l.id }}/retry" style="display:inline;">
-              <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
-              <button class="ar-btn ar-btn-ghost ar-small" type="submit">Retry</button>
-            </form>
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="8" style="padding:16px; opacity:.6;">Noch keine Leads.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</section>
+<div class="panel" style="overflow-x:auto;">
+  <table class="lead-table">
+    <thead>
+      <tr>
+        <th>Datum</th><th>E-Mail</th><th>Firma</th><th>Score</th>
+        <th>Auswertung</th><th>CRM</th><th>Mail</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in leads %}
+      <tr>
+        <td class="meta-time">{{ l.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+        <td>{{ l.email or '—' }}{% if l.name %}<br><span style="color:var(--ar-mute);">{{ l.name }}</span>{% endif %}</td>
+        <td>{{ l.company or '—' }}</td>
+        <td class="score-badge">{{ l.overall_score }}</td>
+        <td>{{ l.tier_name or '—' }}</td>
+        <td>{% if l.crm_pushed %}<span style="color:var(--ar-coral);">✓</span>{% elif l.crm_error %}<span title="{{ l.crm_error }}">⚠</span>{% else %}—{% endif %}</td>
+        <td>{% if l.email_sent %}<span style="color:var(--ar-coral);">✓</span>{% elif l.email_error %}<span title="{{ l.email_error }}">⚠</span>{% else %}—{% endif %}</td>
+        <td>
+          <form method="post" action="/admin/submissions/{{ l.id }}/retry" style="display:inline;">
+            <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
+            <button class="ar-btn ar-btn-ghost" style="padding:6px 12px; font-size: var(--ar-text-sm);" type="submit">Erneut senden</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" style="padding:var(--ar-space-4); color:var(--ar-mute);">Noch keine Leads.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}

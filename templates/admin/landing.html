@@ -1,0 +1,34 @@
+{% extends "admin/_studio.html" %}
+{% block studio_main %}
+<h2 class="studio-area-title">Landingpage</h2>
+<p class="studio-area-intro">Der erste Eindruck: die Seite, auf der Besucher landen und das Quiz starten.</p>
+
+<div class="panel">
+  <form method="post" action="/admin/quizzes/{{ quiz.id }}/landing" class="admin-form" style="max-width:none;" data-inline data-mode="save">
+    <div class="ar-field"><label>Augenbraue (Deutsch)</label><input name="hero_eyebrow_de" value="{{ landing.hero_eyebrow_de if landing }}"><p class="admin-hint">Kleine Zeile über der Überschrift.</p></div>
+    <div class="ar-field"><label>Augenbraue (Englisch)</label><input name="hero_eyebrow_en" value="{{ landing.hero_eyebrow_en if landing }}"></div>
+    <div class="ar-field"><label>Überschrift (Deutsch)</label><input name="hero_headline_de" value="{{ landing.hero_headline_de if landing }}"></div>
+    <div class="ar-field"><label>Überschrift (Englisch)</label><input name="hero_headline_en" value="{{ landing.hero_headline_en if landing }}"></div>
+    <div class="ar-field"><label>Unterzeile (Deutsch)</label><textarea name="hero_subline_de" rows="2">{{ landing.hero_subline_de if landing }}</textarea></div>
+    <div class="ar-field"><label>Unterzeile (Englisch)</label><textarea name="hero_subline_en" rows="2">{{ landing.hero_subline_en if landing }}</textarea></div>
+    <div class="ar-field"><label>Start-Button (Deutsch)</label><input name="cta_label_de" value="{{ landing.cta_label_de if landing }}"></div>
+    <div class="ar-field"><label>Start-Button (Englisch)</label><input name="cta_label_en" value="{{ landing.cta_label_en if landing }}"></div>
+
+    <div class="ar-field">
+      <label>Vorteile</label>
+      <p class="admin-hint" style="max-width: 60ch;">Kurze Argumente, warum sich das Quiz lohnt — erscheinen als Aufzählung direkt unter der Überschrift. Beispiele: „4 Dimensionen, ~3 Minuten" · „Sofort-Score 0–100" · „Konkrete nächste Schritte".</p>
+      <div id="benefits-editor" data-benefits="{{ (landing.benefits_json if landing else '[]') | forceescape }}">
+        <input type="hidden" name="benefits_json" value="{{ landing.benefits_json if landing else '[]' }}">
+        <div data-benefits-rows></div>
+        <button type="button" data-benefits-add class="ar-btn ar-btn-ghost" style="margin-top: var(--ar-space-3);">+ Vorteil hinzufügen</button>
+        <div style="margin-top: var(--ar-space-4);">
+          <span class="admin-hint">Vorschau</span>
+          <ul class="ar-list-mono" data-benefits-preview style="margin-top: var(--ar-space-2); display:none;"></ul>
+        </div>
+      </div>
+    </div>
+
+    <div><button class="ar-btn ar-btn-primary">Landingpage speichern</button></div>
+  </form>
+</div>
+{% endblock %}

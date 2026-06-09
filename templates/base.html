@@ -44,10 +44,12 @@
       <span>Agentic Reach</span>
     </a>
     <div class="ar-nav-right">
+      {% block lang_toggle %}
       <div class="ar-lang-toggle">
         <button type="button" data-lang-btn="de">DE</button>
         <button type="button" data-lang-btn="en">EN</button>
       </div>
+      {% endblock %}
       {% block nav_cta %}{% endblock %}
     </div>
   </div>
