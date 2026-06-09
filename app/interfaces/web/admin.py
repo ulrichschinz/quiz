@@ -11,7 +11,12 @@ import csv
 import io
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import (
+    HTMLResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session
 
@@ -29,6 +34,49 @@ templates = Jinja2Templates(directory="templates")
 
 def _back(quiz_id: int) -> RedirectResponse:
     return RedirectResponse(f"/admin/quizzes/{quiz_id}", status_code=303)
+
+
+# --- inline-save plumbing (Phase 1) ----------------------------------------
+# The editor's per-entity forms POST with an `X-Inline: 1` header (set by
+# static/admin/admin-workspace.js). When present we answer with a fragment /
+# 204 / 422 instead of a 303 full-page redirect, so the page never reloads or
+# jumps. Without the header (no JS) every handler keeps its old `_back()` path.
+def _is_inline(request: Request) -> bool:
+    return request.headers.get("x-inline") == "1"
+
+
+def _parse_weight(raw: str) -> float:
+    """Accept German decimals ("0,5") — there is no global 422 handler, so a raw
+    `float` Form field would explode on a comma. Raises ValueError on garbage."""
+    return float(raw.strip().replace(",", "."))
+
+
+def _parse_int(raw: str) -> int:
+    """Tolerant int parse for score fields. A raw `int` Form field would 422 on an
+    emptied number input; we route those to a friendly message instead."""
+    return int(raw.strip())
+
+
+def _invalid(request: Request, quiz_id: int, message: str) -> Response:
+    """Validation failure: a friendly 422 for the inline path, a silent redirect
+    (data simply not saved) for the no-JS fallback."""
+    if _is_inline(request):
+        return PlainTextResponse(message, status_code=422)
+    return _back(quiz_id)
+
+
+def _fragment(
+    request: Request, session: Session, quiz_id: int, template: str, ctx: dict[str, object]
+) -> HTMLResponse:
+    quiz = quizzes_admin.get_quiz(session, quiz_id)
+    return templates.TemplateResponse(request, template, {"quiz": quiz, **ctx})
+
+
+def _saved(request: Request, quiz_id: int) -> Response:
+    """No-DOM-change success (singleton save / delete)."""
+    if _is_inline(request):
+        return Response(status_code=204)
+    return _back(quiz_id)
 
 
 # --- Quiz list + create ----------------------------------------------------
@@ -77,6 +125,7 @@ def edit_quiz(quiz_id: int, request: Request, session: Session = Depends(get_ses
 @router.post("/quizzes/{quiz_id}/meta")
 def update_meta(
     quiz_id: int,
+    request: Request,
     slug: str = Form(...),
     title_de: str = Form(""),
     title_en: str = Form(""),
@@ -93,7 +142,7 @@ def update_meta(
         default_lang=default_lang,
         estimated_minutes=estimated_minutes,
     )
-    return _back(quiz_id)
+    return _saved(request, quiz_id)
 
 
 @router.post("/quizzes/{quiz_id}/publish")
@@ -118,6 +167,7 @@ def delete_quiz(quiz_id: int, session: Session = Depends(get_session)):
 @router.post("/quizzes/{quiz_id}/landing")
 def update_landing(
     quiz_id: int,
+    request: Request,
     hero_eyebrow_de: str = Form(""),
     hero_eyebrow_en: str = Form(""),
     hero_headline_de: str = Form(""),
@@ -142,12 +192,13 @@ def update_landing(
         cta_label_en=cta_label_en,
         benefits_json=benefits_json,
     )
-    return _back(quiz_id)
+    return _saved(request, quiz_id)
 
 
 @router.post("/quizzes/{quiz_id}/result")
 def update_result(
     quiz_id: int,
+    request: Request,
     intro_de: str = Form(""),
     intro_en: str = Form(""),
     show_dimension_breakdown: str | None = Form(None),
@@ -168,64 +219,98 @@ def update_result(
         email_body_template=email_body_template,
         notify_emails=notify_emails,
     )
-    return _back(quiz_id)
+    return _saved(request, quiz_id)
 
 
 # --- Dimensions ------------------------------------------------------------
 @router.post("/quizzes/{quiz_id}/dimensions")
 def add_dimension(
     quiz_id: int,
+    request: Request,
     key: str = Form(...),
     name_de: str = Form(""),
     name_en: str = Form(""),
-    weight: float = Form(1.0),
+    weight: str = Form("1.0"),
     session: Session = Depends(get_session),
 ):
-    quizzes_admin.add_dimension(session, quiz_id, key, name_de, name_en, weight)
+    try:
+        w = _parse_weight(weight)
+    except ValueError:
+        return _invalid(request, quiz_id, "Gewicht muss eine Zahl sein (z. B. 0,5).")
+    quizzes_admin.add_dimension(session, quiz_id, key, name_de, name_en, w)
+    if _is_inline(request):
+        d = quizzes_admin.get_dimensions(session, quiz_id)[-1]
+        return _fragment(request, session, quiz_id, "admin/_dimension_row.html", {"d": d})
     return _back(quiz_id)
 
 
 @router.post("/dimensions/{dim_id}")
 def update_dimension(
     dim_id: int,
+    request: Request,
     quiz_id: int = Form(...),
     key: str = Form(...),
     name_de: str = Form(""),
     name_en: str = Form(""),
-    weight: float = Form(1.0),
+    weight: str = Form("1.0"),
     position: int = Form(0),
     session: Session = Depends(get_session),
 ):
+    try:
+        w = _parse_weight(weight)
+    except ValueError:
+        return _invalid(request, quiz_id, "Gewicht muss eine Zahl sein (z. B. 0,5).")
     quizzes_admin.update_dimension(
-        session, dim_id, key=key, name_de=name_de, name_en=name_en, weight=weight, position=position
+        session, dim_id, key=key, name_de=name_de, name_en=name_en, weight=w, position=position
     )
+    if _is_inline(request):
+        d = quizzes_admin.get_dimension(session, dim_id)
+        return _fragment(request, session, quiz_id, "admin/_dimension_row.html", {"d": d})
     return _back(quiz_id)
 
 
 @router.post("/dimensions/{dim_id}/delete")
 def delete_dimension(
-    dim_id: int, quiz_id: int = Form(...), session: Session = Depends(get_session)
+    dim_id: int,
+    request: Request,
+    quiz_id: int = Form(...),
+    session: Session = Depends(get_session),
 ):
     quizzes_admin.delete_dimension(session, dim_id)
-    return _back(quiz_id)
+    return _saved(request, quiz_id)
 
 
 # --- Questions + options ---------------------------------------------------
 @router.post("/quizzes/{quiz_id}/questions")
 def add_question(
     quiz_id: int,
-    dimension_id: int = Form(...),
+    request: Request,
+    dimension_id: int | None = Form(None),
     text_de: str = Form(""),
     text_en: str = Form(""),
     session: Session = Depends(get_session),
 ):
+    # On a brand-new quiz the dimension <select> is empty, so nothing is posted.
+    # Catch it ourselves (there is no global 422 handler) instead of leaking JSON.
+    if dimension_id is None:
+        return _invalid(request, quiz_id, "Bitte zuerst eine Dimension anlegen.")
     quizzes_admin.add_question(session, quiz_id, dimension_id, text_de, text_en)
+    if _is_inline(request):
+        q = quizzes_admin.get_questions(session, quiz_id)[-1]
+        return _fragment(
+            request,
+            session,
+            quiz_id,
+            "admin/_question_card.html",
+            {"q": q, "options": [], "dimensions": quizzes_admin.get_dimensions(session, quiz_id)},
+        )
     return _back(quiz_id)
 
 
 @router.post("/questions/{question_id}")
 def update_question(
     question_id: int,
+    request: Request,
     quiz_id: int = Form(...),
     dimension_id: int = Form(...),
     text_de: str = Form(""),
@@ -245,76 +330,122 @@ def update_question(
         help_en=help_en,
         position=position,
     )
+    if _is_inline(request):
+        q = quizzes_admin.get_question(session, question_id)
+        return _fragment(
+            request,
+            session,
+            quiz_id,
+            "admin/_question_form.html",
+            {"q": q, "dimensions": quizzes_admin.get_dimensions(session, quiz_id)},
+        )
     return _back(quiz_id)
 
 
 @router.post("/questions/{question_id}/delete")
 def delete_question(
-    question_id: int, quiz_id: int = Form(...), session: Session = Depends(get_session)
+    question_id: int,
+    request: Request,
+    quiz_id: int = Form(...),
+    session: Session = Depends(get_session),
 ):
     quizzes_admin.delete_question(session, question_id)
-    return _back(quiz_id)
+    return _saved(request, quiz_id)
 
 
 @router.post("/questions/{question_id}/options")
 def add_option(
     question_id: int,
+    request: Request,
     quiz_id: int = Form(...),
     label_de: str = Form(""),
     label_en: str = Form(""),
-    weight: float = Form(0.0),
+    weight: str = Form("0.0"),
     session: Session = Depends(get_session),
 ):
-    quizzes_admin.add_option(session, question_id, label_de, label_en, weight)
+    try:
+        w = _parse_weight(weight)
+    except ValueError:
+        return _invalid(
+            request, quiz_id, "Gewicht muss eine Zahl zwischen 0 und 1 sein (z. B. 0,5)."
+        )
+    quizzes_admin.add_option(session, question_id, label_de, label_en, w)
+    if _is_inline(request):
+        o = quizzes_admin.get_options(session, question_id)[-1]
+        return _fragment(request, session, quiz_id, "admin/_option_row.html", {"o": o})
     return _back(quiz_id)
 
 
 @router.post("/options/{option_id}")
 def update_option(
     option_id: int,
+    request: Request,
     quiz_id: int = Form(...),
     label_de: str = Form(""),
     label_en: str = Form(""),
-    weight: float = Form(0.0),
+    weight: str = Form("0.0"),
     position: int = Form(0),
     session: Session = Depends(get_session),
 ):
+    try:
+        w = _parse_weight(weight)
+    except ValueError:
+        return _invalid(
+            request, quiz_id, "Gewicht muss eine Zahl zwischen 0 und 1 sein (z. B. 0,5)."
+        )
     quizzes_admin.update_option(
-        session, option_id, label_de=label_de, label_en=label_en, weight=weight, position=position
+        session, option_id, label_de=label_de, label_en=label_en, weight=w, position=position
     )
+    if _is_inline(request):
+        o = quizzes_admin.get_option(session, option_id)
+        return _fragment(request, session, quiz_id, "admin/_option_row.html", {"o": o})
     return _back(quiz_id)
 
 
 @router.post("/options/{option_id}/delete")
 def delete_option(
-    option_id: int, quiz_id: int = Form(...), session: Session = Depends(get_session)
+    option_id: int,
+    request: Request,
+    quiz_id: int = Form(...),
+    session: Session = Depends(get_session),
 ):
     quizzes_admin.delete_option(session, option_id)
-    return _back(quiz_id)
+    return _saved(request, quiz_id)
 
 
 # --- Tiers -----------------------------------------------------------------
 @router.post("/quizzes/{quiz_id}/tiers")
 def add_tier(
     quiz_id: int,
+    request: Request,
     name_de: str = Form(""),
     name_en: str = Form(""),
-    min_score: int = Form(0),
-    max_score: int = Form(100),
+    min_score: str = Form("0"),
+    max_score: str = Form("100"),
     session: Session = Depends(get_session),
 ):
-    quizzes_admin.add_tier(session, quiz_id, name_de, name_en, min_score, max_score)
+    try:
+        mn, mx = _parse_int(min_score), _parse_int(max_score)
+    except ValueError:
+        return _invalid(request, quiz_id, "Min/Max müssen ganze Zahlen sein.")
+    if mn > mx:
+        return _invalid(request, quiz_id, "Min darf nicht größer als Max sein.")
+    quizzes_admin.add_tier(session, quiz_id, name_de, name_en, mn, mx)
+    if _is_inline(request):
+        t = quizzes_admin.get_tiers(session, quiz_id)[-1]
+        return _fragment(request, session, quiz_id, "admin/_tier_card.html", {"t": t})
     return _back(quiz_id)
 
 
 @router.post("/tiers/{tier_id}")
 def update_tier(
     tier_id: int,
+    request: Request,
     quiz_id: int = Form(...),
     name_de: str = Form(""),
     name_en: str = Form(""),
-    min_score: int = Form(0),
-    max_score: int = Form(100),
+    min_score: str = Form("0"),
+    max_score: str = Form("100"),
     headline_de: str = Form(""),
     headline_en: str = Form(""),
     body_de: str = Form(""),
@@ -325,13 +456,19 @@ def update_tier(
     position: int = Form(0),
     session: Session = Depends(get_session),
 ):
+    try:
+        mn, mx = _parse_int(min_score), _parse_int(max_score)
+    except ValueError:
+        return _invalid(request, quiz_id, "Min/Max müssen ganze Zahlen sein.")
+    if mn > mx:
+        return _invalid(request, quiz_id, "Min darf nicht größer als Max sein.")
     quizzes_admin.update_tier(
         session,
         tier_id,
         name_de=name_de,
         name_en=name_en,
-        min_score=min_score,
-        max_score=max_score,
+        min_score=mn,
+        max_score=mx,
         headline_de=headline_de,
         headline_en=headline_en,
         body_de=body_de,
@@ -341,13 +478,21 @@ def update_tier(
         cta_url=cta_url,
         position=position,
     )
+    if _is_inline(request):
+        t = quizzes_admin.get_tier(session, tier_id)
+        return _fragment(request, session, quiz_id, "admin/_tier_card.html", {"t": t})
     return _back(quiz_id)
 
 
 @router.post("/tiers/{tier_id}/delete")
-def delete_tier(tier_id: int, quiz_id: int = Form(...), session: Session = Depends(get_session)):
+def delete_tier(
+    tier_id: int,
+    request: Request,
+    quiz_id: int = Form(...),
+    session: Session = Depends(get_session),
+):
     quizzes_admin.delete_tier(session, tier_id)
-    return _back(quiz_id)
+    return _saved(request, quiz_id)
 
 
 # --- Leads -----------------------------------------------------------------

@@ -27,10 +27,22 @@
     </div>
   </div>
 
+  {# Section rail (Phase 2). Progressive enhancement: without JS all sections
+     render stacked as before; admin-workspace.js adds `ws-on` to <body> which
+     flips to one-section-at-a-time, driven by location.hash. #}
+  <nav class="ws-nav" data-ws-nav aria-label="Editor-Abschnitte">
+    <button type="button" data-ws-link="meta">Stammdaten</button>
+    <button type="button" data-ws-link="landing">Landing</button>
+    <button type="button" data-ws-link="dimensions">Dimensionen</button>
+    <button type="button" data-ws-link="questions">Fragen</button>
+    <button type="button" data-ws-link="tiers">Auswertungen</button>
+    <button type="button" data-ws-link="result">Ergebnis</button>
+  </nav>
+
   {# --- Meta --- #}
-  <div class="ar-card" style="margin-top: var(--ar-space-6); padding: var(--ar-space-6);">
+  <div class="ar-card" data-ws-section="meta" style="margin-top: var(--ar-space-6); padding: var(--ar-space-6);">
     <span class="ar-eyebrow">// Stammdaten</span>
-    <form method="post" action="/admin/quizzes/{{ quiz.id }}/meta" class="ar-form-grid" style="margin-top: var(--ar-space-4);">
+    <form method="post" action="/admin/quizzes/{{ quiz.id }}/meta" class="ar-form-grid" style="margin-top: var(--ar-space-4);" data-inline data-mode="save">
       <div class="ar-field"><label class="ar-eyebrow">Slug</label><input name="slug" value="{{ quiz.slug }}" required></div>
       <div class="ar-field"><label class="ar-eyebrow">Standard-Sprache</label><input name="default_lang" value="{{ quiz.default_lang }}"></div>
       <div class="ar-field"><label class="ar-eyebrow">Titel (DE)</label><input name="title_de" value="{{ quiz.title_de }}"></div>
@@ -41,9 +53,9 @@
   </div>
 
   {# --- Landing --- #}
-  <div class="ar-card" style="margin-top: var(--ar-space-5); padding: var(--ar-space-6);">
+  <div class="ar-card" data-ws-section="landing" style="margin-top: var(--ar-space-5); padding: var(--ar-space-6);">
     <span class="ar-eyebrow">// Landingpage</span>
-    <form method="post" action="/admin/quizzes/{{ quiz.id }}/landing" class="ar-form-grid" style="margin-top: var(--ar-space-4);">
+    <form method="post" action="/admin/quizzes/{{ quiz.id }}/landing" class="ar-form-grid" style="margin-top: var(--ar-space-4);" data-inline data-mode="save">
       <div class="ar-field"><label class="ar-eyebrow">Eyebrow (DE)</label><input name="hero_eyebrow_de" value="{{ landing.hero_eyebrow_de if landing }}"></div>
       <div class="ar-field"><label class="ar-eyebrow">Eyebrow (EN)</label><input name="hero_eyebrow_en" value="{{ landing.hero_eyebrow_en if landing }}"></div>
       <div class="ar-field full"><label class="ar-eyebrow">Headline (DE)</label><input name="hero_headline_de" value="{{ landing.hero_headline_de if landing }}"></div>
@@ -63,7 +75,9 @@
           · „Kostenlos &amp; unverbindlich". Jeweils auf Deutsch und Englisch (für den Sprachumschalter).
         </p>
         <div id="benefits-editor" data-benefits="{{ (landing.benefits_json if landing else '[]') | forceescape }}">
-          <input type="hidden" name="benefits_json" value="[]">
+          {# Seed with the real value so a no-JS save doesn't wipe benefits;
+             benefits-editor.js overwrites it on input/submit when JS is on. #}
+          <input type="hidden" name="benefits_json" value="{{ landing.benefits_json if landing else '[]' }}">
           <div data-benefits-rows></div>
           <button type="button" data-benefits-add class="ar-btn ar-btn-ghost" style="margin-top: var(--ar-space-3);">+ Vorteil hinzufügen</button>
           <div style="margin-top: var(--ar-space-4);">
@@ -77,23 +91,10 @@
   </div>
 
   {# --- Dimensions --- #}
-  <div class="ar-card" style="margin-top: var(--ar-space-5); padding: var(--ar-space-6);">
+  <div class="ar-card" data-ws-section="dimensions" style="margin-top: var(--ar-space-5); padding: var(--ar-space-6);">
     <span class="ar-eyebrow">// Dimensionen</span>
-    {% for d in dimensions %}
-    <form method="post" action="/admin/dimensions/{{ d.id }}" class="ar-form-grid" style="margin-top: var(--ar-space-4); align-items:end;">
-      <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
-      <div class="ar-field"><label class="ar-eyebrow">Key</label><input name="key" value="{{ d.key }}"></div>
-      <div class="ar-field"><label class="ar-eyebrow">Name (DE)</label><input name="name_de" value="{{ d.name_de }}"></div>
-      <div class="ar-field"><label class="ar-eyebrow">Name (EN)</label><input name="name_en" value="{{ d.name_en }}"></div>
-      <div class="ar-field"><label class="ar-eyebrow">Gewicht</label><input name="weight" type="number" step="0.1" value="{{ d.weight }}"></div>
-      <div class="ar-field"><label class="ar-eyebrow">Pos.</label><input name="position" type="number" value="{{ d.position }}"></div>
-      <div class="ar-field" style="flex-direction:row; gap:6px;">
-        <button class="ar-btn ar-btn-primary">OK</button>
-        <button formaction="/admin/dimensions/{{ d.id }}/delete" class="ar-btn ar-btn-ghost">✕</button>
-      </div>
-    </form>
-    {% endfor %}
-    <form method="post" action="/admin/quizzes/{{ quiz.id }}/dimensions" class="ar-form-grid" style="margin-top: var(--ar-space-5);">
+    {% for d in dimensions %}{% include "admin/_dimension_row.html" %}{% endfor %}
+    <form method="post" action="/admin/quizzes/{{ quiz.id }}/dimensions" class="ar-form-grid" style="margin-top: var(--ar-space-5);" data-inline data-mode="append">
       <div class="ar-field"><label class="ar-eyebrow">Neue Dimension · Key</label><input name="key" required></div>
       <div class="ar-field"><label class="ar-eyebrow">Name (DE)</label><input name="name_de"></div>
       <div class="ar-field"><label class="ar-eyebrow">Name (EN)</label><input name="name_en"></div>
@@ -103,53 +104,14 @@
   </div>
 
   {# --- Questions --- #}
-  <div class="ar-card" style="margin-top: var(--ar-space-5); padding: var(--ar-space-6);">
-    <span class="ar-eyebrow">// Fragen</span>
-    {% for item in questions %}
-    {% set q = item.q %}
-    <div style="margin-top: var(--ar-space-5); padding-top: var(--ar-space-4); border-top:1px solid var(--ar-hairline);">
-      <form method="post" action="/admin/questions/{{ q.id }}" class="ar-form-grid" style="align-items:end;">
-        <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
-        <div class="ar-field full"><label class="ar-eyebrow">Frage (DE)</label><input name="text_de" value="{{ q.text_de }}"></div>
-        <div class="ar-field full"><label class="ar-eyebrow">Frage (EN)</label><input name="text_en" value="{{ q.text_en }}"></div>
-        <div class="ar-field"><label class="ar-eyebrow">Dimension</label>
-          <select name="dimension_id">
-            {% for d in dimensions %}<option value="{{ d.id }}" {{ 'selected' if d.id == q.dimension_id }}>{{ d.name_de or d.key }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="ar-field"><label class="ar-eyebrow">Pos.</label><input name="position" type="number" value="{{ q.position }}"></div>
-        <div class="ar-field" style="flex-direction:row; gap:6px;">
-          <button class="ar-btn ar-btn-primary">OK</button>
-          <button formaction="/admin/questions/{{ q.id }}/delete" class="ar-btn ar-btn-ghost">✕ Frage</button>
-        </div>
-      </form>
-
-      <div style="margin-top: var(--ar-space-3); padding-left: var(--ar-space-4);">
-        {% for o in item.options %}
-        <form method="post" action="/admin/options/{{ o.id }}" class="ar-form-grid" style="align-items:end;">
-          <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
-          <div class="ar-field"><label class="ar-eyebrow">Option (DE)</label><input name="label_de" value="{{ o.label_de }}"></div>
-          <div class="ar-field"><label class="ar-eyebrow">Option (EN)</label><input name="label_en" value="{{ o.label_en }}"></div>
-          <div class="ar-field"><label class="ar-eyebrow">Gewicht 0–1</label><input name="weight" type="number" step="0.01" value="{{ o.weight }}"></div>
-          <div class="ar-field"><label class="ar-eyebrow">Pos.</label><input name="position" type="number" value="{{ o.position }}"></div>
-          <div class="ar-field" style="flex-direction:row; gap:6px;">
-            <button class="ar-btn ar-btn-primary">OK</button>
-            <button formaction="/admin/options/{{ o.id }}/delete" class="ar-btn ar-btn-ghost">✕</button>
-          </div>
-        </form>
-        {% endfor %}
-        <form method="post" action="/admin/questions/{{ q.id }}/options" class="ar-form-grid" style="margin-top: var(--ar-space-2);">
-          <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
-          <div class="ar-field"><label class="ar-eyebrow">Neue Option (DE)</label><input name="label_de"></div>
-          <div class="ar-field"><label class="ar-eyebrow">(EN)</label><input name="label_en"></div>
-          <div class="ar-field"><label class="ar-eyebrow">Gewicht</label><input name="weight" type="number" step="0.01" value="0.0"></div>
-          <div class="ar-field"><button class="ar-btn ar-btn-ghost">+ Option</button></div>
-        </form>
-      </div>
+  <div class="ar-card" data-ws-section="questions" style="margin-top: var(--ar-space-5); padding: var(--ar-space-6);">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap: var(--ar-space-3);">
+      <span class="ar-eyebrow">// Fragen</span>
+      <button type="button" class="ar-btn ar-btn-ghost ar-small" data-ws-toggle-all hidden>Alle ausklappen</button>
     </div>
-    {% endfor %}
-
-    <form method="post" action="/admin/quizzes/{{ quiz.id }}/questions" class="ar-form-grid" style="margin-top: var(--ar-space-6); padding-top: var(--ar-space-4); border-top:1px solid var(--ar-hairline);">
+    <div data-questions>
+    {% for item in questions %}{% with q = item.q, options = item.options %}{% include "admin/_question_card.html" %}{% endwith %}{% endfor %}
+    <form method="post" action="/admin/quizzes/{{ quiz.id }}/questions" class="ar-form-grid" style="margin-top: var(--ar-space-6); padding-top: var(--ar-space-4); border-top:1px solid var(--ar-hairline);" data-inline data-mode="append">
       <div class="ar-field full"><label class="ar-eyebrow">Neue Frage (DE)</label><input name="text_de"></div>
       <div class="ar-field full"><label class="ar-eyebrow">Neue Frage (EN)</label><input name="text_en"></div>
       <div class="ar-field"><label class="ar-eyebrow">Dimension</label>
@@ -159,33 +121,14 @@
       </div>
       <div class="ar-field"><button class="ar-btn ar-btn-coral">+ Frage</button></div>
     </form>
+    </div>
   </div>
 
   {# --- Tiers --- #}
-  <div class="ar-card" style="margin-top: var(--ar-space-5); padding: var(--ar-space-6);">
+  <div class="ar-card" data-ws-section="tiers" style="margin-top: var(--ar-space-5); padding: var(--ar-space-6);">
     <span class="ar-eyebrow">// Auswertungen (Tiers)</span>
-    {% for t in tiers %}
-    <form method="post" action="/admin/tiers/{{ t.id }}" class="ar-form-grid" style="margin-top: var(--ar-space-5); padding-top: var(--ar-space-3); border-top:1px solid var(--ar-hairline); align-items:end;">
-      <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
-      <div class="ar-field"><label class="ar-eyebrow">Name (DE)</label><input name="name_de" value="{{ t.name_de }}"></div>
-      <div class="ar-field"><label class="ar-eyebrow">Name (EN)</label><input name="name_en" value="{{ t.name_en }}"></div>
-      <div class="ar-field"><label class="ar-eyebrow">Min</label><input name="min_score" type="number" value="{{ t.min_score }}"></div>
-      <div class="ar-field"><label class="ar-eyebrow">Max</label><input name="max_score" type="number" value="{{ t.max_score }}"></div>
-      <div class="ar-field"><label class="ar-eyebrow">Pos.</label><input name="position" type="number" value="{{ t.position }}"></div>
-      <div class="ar-field full"><label class="ar-eyebrow">Headline (DE)</label><input name="headline_de" value="{{ t.headline_de }}"></div>
-      <div class="ar-field full"><label class="ar-eyebrow">Headline (EN)</label><input name="headline_en" value="{{ t.headline_en }}"></div>
-      <div class="ar-field full"><label class="ar-eyebrow">Text (DE)</label><textarea name="body_de" rows="2">{{ t.body_de }}</textarea></div>
-      <div class="ar-field full"><label class="ar-eyebrow">Text (EN)</label><textarea name="body_en" rows="2">{{ t.body_en }}</textarea></div>
-      <div class="ar-field"><label class="ar-eyebrow">CTA (DE)</label><input name="cta_label_de" value="{{ t.cta_label_de or '' }}"></div>
-      <div class="ar-field"><label class="ar-eyebrow">CTA (EN)</label><input name="cta_label_en" value="{{ t.cta_label_en or '' }}"></div>
-      <div class="ar-field full"><label class="ar-eyebrow">CTA-URL</label><input name="cta_url" value="{{ t.cta_url or '' }}"></div>
-      <div class="ar-field" style="flex-direction:row; gap:6px;">
-        <button class="ar-btn ar-btn-primary">Speichern</button>
-        <button formaction="/admin/tiers/{{ t.id }}/delete" class="ar-btn ar-btn-ghost">✕</button>
-      </div>
-    </form>
-    {% endfor %}
-    <form method="post" action="/admin/quizzes/{{ quiz.id }}/tiers" class="ar-form-grid" style="margin-top: var(--ar-space-6);">
+    {% for t in tiers %}{% include "admin/_tier_card.html" %}{% endfor %}
+    <form method="post" action="/admin/quizzes/{{ quiz.id }}/tiers" class="ar-form-grid" style="margin-top: var(--ar-space-6);" data-inline data-mode="append">
       <div class="ar-field"><label class="ar-eyebrow">Neuer Tier · Name (DE)</label><input name="name_de"></div>
       <div class="ar-field"><label class="ar-eyebrow">Name (EN)</label><input name="name_en"></div>
       <div class="ar-field"><label class="ar-eyebrow">Min</label><input name="min_score" type="number" value="0"></div>
@@ -195,9 +138,9 @@
   </div>
 
   {# --- Result config --- #}
-  <div class="ar-card" style="margin-top: var(--ar-space-5); padding: var(--ar-space-6);">
+  <div class="ar-card" data-ws-section="result" style="margin-top: var(--ar-space-5); padding: var(--ar-space-6);">
     <span class="ar-eyebrow">// Ergebnis & E-Mail</span>
-    <form method="post" action="/admin/quizzes/{{ quiz.id }}/result" class="ar-form-grid" style="margin-top: var(--ar-space-4);">
+    <form method="post" action="/admin/quizzes/{{ quiz.id }}/result" class="ar-form-grid" style="margin-top: var(--ar-space-4);" data-inline data-mode="save">
       <div class="ar-field"><label class="ar-eyebrow">Intro (DE)</label><input name="intro_de" value="{{ result_cfg.intro_de if result_cfg }}"></div>
       <div class="ar-field"><label class="ar-eyebrow">Intro (EN)</label><input name="intro_en" value="{{ result_cfg.intro_en if result_cfg }}"></div>
       <div class="ar-field full" style="flex-direction:row; gap:8px; align-items:center;">
@@ -217,4 +160,5 @@
 
 {% block body_scripts %}
 <script defer src="/static/admin/benefits-editor.js"></script>
+<script defer src="/static/admin/admin-workspace.js"></script>
 {% endblock %}

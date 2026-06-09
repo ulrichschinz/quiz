@@ -12,7 +12,7 @@ that changes the structure.
 | Domains           | 2    |
 | Route-Module      | 4    |
 | HTTP-Endpoints    | 34   |
-| HTML-Templates    | 8    |
+| HTML-Templates    | 13   |
 | SQLModel-Tabellen | 8    |
 
 - **Domains** — sub-packages under `app/domains/` (`quizzes`, `submissions`).
