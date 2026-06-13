@@ -66,7 +66,11 @@
   // --- save flow ----------------------------------------------------------
   function submit(form, submitter) {
     var mode = (submitter && submitter.dataset.mode) || form.dataset.mode || "replace";
-    var action = (submitter && submitter.formAction) || form.action;
+    // Read the *attribute*, not the .formAction property: a submit button with no
+    // formaction returns the document URL via the property (HTML spec), which sent
+    // saves to the GET page (-> 405) whenever the page path != the form action.
+    var explicit = submitter && submitter.getAttribute("formaction");
+    var action = explicit || form.action;
 
     setStatus(form, "saving", "speichert …");
 
