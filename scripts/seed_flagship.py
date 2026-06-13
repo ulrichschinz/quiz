@@ -255,9 +255,13 @@ def _seed(session: Session) -> None:
             show_dimension_breakdown=True,
             email_subject_de="Ihr Agentic AI Readiness Score: {score}/100",
             email_subject_en="Your Agentic AI Readiness Score: {score}/100",
-            email_body_template=(
+            email_body_de=(
                 "Hallo {name},\n\nIhr Readiness-Score liegt bei {score}/100 ({tier}).\n"
                 "Vollständige Auswertung: {url}\n\n// Agentic Reach"
+            ),
+            email_body_en=(
+                "Hi {name},\n\nyour readiness score is {score}/100 ({tier}).\n"
+                "Full evaluation: {url}\n\n// Agentic Reach"
             ),
             notify_emails="leads@agentic-reach.com",
         )

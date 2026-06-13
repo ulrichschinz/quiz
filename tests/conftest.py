@@ -101,7 +101,8 @@ def seeded(engine) -> str:
                 intro_en="Result",
                 email_subject_de="Score {score}",
                 email_subject_en="Score {score}",
-                email_body_template="Hi {name}, {score}/100 ({tier}) {url}",
+                email_body_de="Hallo {name}, {score}/100 ({tier}) {url}",
+                email_body_en="Hi {name}, {score}/100 ({tier}) {url}",
                 notify_emails="team@example.com",
             )
         )

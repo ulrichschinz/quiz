@@ -425,7 +425,8 @@ def update_result(
     show_dimension_breakdown: str | None = Form(None),
     email_subject_de: str = Form(""),
     email_subject_en: str = Form(""),
-    email_body_template: str = Form(""),
+    email_body_de: str = Form(""),
+    email_body_en: str = Form(""),
     notify_emails: str = Form(""),
     session: Session = Depends(get_session),
 ):
@@ -437,7 +438,8 @@ def update_result(
         show_dimension_breakdown=show_dimension_breakdown is not None,
         email_subject_de=email_subject_de,
         email_subject_en=email_subject_en,
-        email_body_template=email_body_template,
+        email_body_de=email_body_de,
+        email_body_en=email_body_en,
         notify_emails=notify_emails,
     )
     return _saved(request, quiz_id)
