@@ -37,14 +37,33 @@ def dispatch(
     session: Session,
     submission: Submission,
     *,
-    email_subject: str,
-    email_body: str,
+    customer_subject: str,
+    customer_text: str,
+    team_subject: str,
+    team_text: str,
     notify_emails: str,
     result_url: str,
+    customer_html: str | None = None,
+    team_html: str | None = None,
 ) -> None:
-    """Fan the committed lead out to the CRM + email destinations."""
+    """Fan the committed lead out to the CRM + email destinations.
+
+    Subjects/texts come in already rendered (the interface layer owns
+    templating); the `*_html` bodies, when present, ride along as the HTML
+    alternative so recipients see the branded versions.
+    """
     _push_to_crm(session, submission, result_url)
-    _send_emails(session, submission, email_subject, email_body, notify_emails, result_url)
+    _send_emails(
+        session,
+        submission,
+        customer_subject=customer_subject,
+        customer_text=customer_text,
+        customer_html=customer_html,
+        team_subject=team_subject,
+        team_text=team_text,
+        team_html=team_html,
+        notify_emails=notify_emails,
+    )
 
 
 def _push_to_crm(session: Session, submission: Submission, result_url: str) -> None:
@@ -89,35 +108,29 @@ def _push_to_crm(session: Session, submission: Submission, result_url: str) -> N
 def _send_emails(
     session: Session,
     submission: Submission,
-    email_subject: str,
-    email_body: str,
+    *,
+    customer_subject: str,
+    customer_text: str,
+    customer_html: str | None,
+    team_subject: str,
+    team_text: str,
+    team_html: str | None,
     notify_emails: str,
-    result_url: str,
 ) -> None:
     settings = get_settings()
     if not settings.smtp_host:
         return  # leg disabled (local dev)
 
-    recipients: list[tuple[str, str, str]] = []
+    # (to, subject, text, html|None) — html rides as a multipart alternative.
+    messages: list[tuple[str, str, str, str | None]] = []
     if submission.email:
-        body = email_body.format(
-            name=submission.name or "",
-            score=submission.overall_score,
-            tier=submission.tier_name or "",
-            url=result_url,
-        )
-        subject = email_subject.format(score=submission.overall_score)
-        recipients.append((submission.email, subject, body))
+        messages.append((submission.email, customer_subject, customer_text, customer_html))
 
     for addr in (e.strip() for e in notify_emails.split(",") if e.strip()):
-        note = (
-            f"Neuer Scorecard-Lead: {submission.email} ({submission.company})\n"
-            f"Score: {submission.overall_score}/100 ({submission.tier_name})\n{result_url}"
-        )
-        recipients.append((addr, f"Neuer Lead: {submission.overall_score}/100", note))
+        messages.append((addr, team_subject, team_text, team_html))
 
     try:
-        _smtp_send(settings, recipients)
+        _smtp_send(settings, messages)
         submission.email_sent = True
         submission.email_error = None
     except Exception as exc:
@@ -127,7 +140,7 @@ def _send_emails(
     session.commit()
 
 
-def _smtp_send(settings: Settings, messages: list[tuple[str, str, str]]) -> None:
+def _smtp_send(settings: Settings, messages: list[tuple[str, str, str, str | None]]) -> None:
     if not messages:
         return
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=_SMTP_TIMEOUT) as server:
@@ -135,10 +148,12 @@ def _smtp_send(settings: Settings, messages: list[tuple[str, str, str]]) -> None
             server.starttls()
         if settings.smtp_user:
             server.login(settings.smtp_user, settings.smtp_password)
-        for to, subject, body in messages:
+        for to, subject, text, html in messages:
             msg = EmailMessage()
             msg["From"] = settings.smtp_from
             msg["To"] = to
             msg["Subject"] = subject
-            msg.set_content(body)
+            msg.set_content(text)
+            if html:
+                msg.add_alternative(html, subtype="html")
             server.send_message(msg)

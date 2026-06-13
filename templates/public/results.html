@@ -6,11 +6,26 @@
 
   <span class="ar-eyebrow">// {{ result.intro }}</span>
 
+  {% set overall_level = score_level(sub.overall_score) %}
   <div class="ar-card" style="margin-top: var(--ar-space-5); display:flex; align-items:center; gap: var(--ar-space-8); flex-wrap:wrap;">
-    <div>
-      <div class="score-big">{{ sub.overall_score }}<span style="font-size:var(--ar-text-lg);opacity:.5;">/100</span></div>
+    <div style="display:flex; flex-direction:column; align-items:center; gap: var(--ar-space-2);">
+      {# Donut gauge: r=52 → circumference = 2πr ≈ 326.726; offset shrinks the
+         dashed arc to score%. Coloured by the overall traffic-light level. #}
+      <svg class="score-dial" viewBox="0 0 120 120" role="img"
+           aria-label="{{ sub.overall_score }}/100">
+        <circle cx="60" cy="60" r="52" fill="none" stroke="var(--ar-hairline)" stroke-width="12"/>
+        <circle cx="60" cy="60" r="52" fill="none" stroke-width="12" stroke-linecap="round"
+                transform="rotate(-90 60 60)"
+                style="stroke: var(--ar-score-{{ overall_level }});
+                       stroke-dasharray: 326.726;
+                       stroke-dashoffset: {{ 326.726 * (1 - sub.overall_score / 100) }};"/>
+        <text x="60" y="56" text-anchor="middle" dominant-baseline="middle"
+              style="fill: var(--ar-score-{{ overall_level }}); font-family: var(--ar-font-sans); font-weight:600; font-size:34px;">{{ sub.overall_score }}</text>
+        <text x="60" y="80" text-anchor="middle"
+              style="fill: var(--ar-mute); font-family: var(--ar-font-mono); font-size:11px; letter-spacing:.04em;">/ 100</text>
+      </svg>
       {% if result.tier_name %}
-      <div class="ar-card-num" style="margin-top: var(--ar-space-2);">{{ result.tier_name }}</div>
+      <div class="ar-card-num" style="color: var(--ar-score-{{ overall_level }});">{{ result.tier_name }}</div>
       {% endif %}
     </div>
     <div style="flex:1; min-width:280px;">
@@ -26,14 +41,43 @@
   {% if result.show_breakdown and result.dimensions %}
   <div style="margin-top: var(--ar-space-10);">
     <span class="ar-eyebrow">// {{ 'Ihre Dimensionen' if lang == 'de' else 'Your dimensions' }}</span>
-    <div style="margin-top: var(--ar-space-5);">
+
+    {# Radar needs ≥3 axes to read as an area; below that it degenerates to a
+       line, so we lean on the coloured bars alone. #}
+    {% if result.dimensions | length >= 3 %}
+    {% set radar = radar_geometry(result.dimensions | map(attribute='score') | list) %}
+    <div style="display:flex; justify-content:center; margin-top: var(--ar-space-6);">
+      <svg class="dim-radar" viewBox="0 0 {{ radar.size }} {{ radar.size }}"
+           overflow="visible" role="img"
+           aria-label="{{ 'Auswertung pro Dimension' if lang == 'de' else 'Score per dimension' }}">
+        {% for rr in radar.rings %}
+        <circle cx="{{ radar.cx }}" cy="{{ radar.cy }}" r="{{ rr }}" fill="none" stroke="var(--ar-hairline)" stroke-width="1"/>
+        {% endfor %}
+        {% for ax in radar.axes %}
+        <line x1="{{ radar.cx }}" y1="{{ radar.cy }}" x2="{{ ax.edge_x }}" y2="{{ ax.edge_y }}" stroke="var(--ar-hairline)" stroke-width="1"/>
+        {% endfor %}
+        <polygon points="{{ radar.polygon }}" stroke-width="2" stroke-linejoin="round"
+                 style="fill: var(--ar-score-{{ overall_level }}-soft); stroke: var(--ar-score-{{ overall_level }});"/>
+        {% for ax in radar.axes %}
+        {% set d = result.dimensions[loop.index0] %}
+        <circle cx="{{ ax.x }}" cy="{{ ax.y }}" r="4.5"
+                style="fill: var(--ar-score-{{ score_level(d.score) }});"/>
+        <text x="{{ ax.label_x }}" y="{{ ax.label_y }}" text-anchor="{{ ax.anchor }}" dominant-baseline="middle"
+              style="fill: var(--ar-mute); font-family: var(--ar-font-mono); font-size:11px;">{{ d.name }}</text>
+        {% endfor %}
+      </svg>
+    </div>
+    {% endif %}
+
+    <div style="margin-top: var(--ar-space-6);">
       {% for d in result.dimensions %}
+      {% set dim_level = score_level(d.score) %}
       <div class="dim-row">
         <div style="display:flex; justify-content:space-between;">
           <span class="ar-body">{{ d.name }}</span>
-          <span class="ar-mono">{{ d.score }}/100</span>
+          <span class="ar-mono" style="color: var(--ar-score-{{ dim_level }});">{{ d.score }}/100</span>
         </div>
-        <div class="dim-bar"><div class="dim-bar__fill" style="width: {{ d.score }}%;"></div></div>
+        <div class="dim-bar"><div class="dim-bar__fill" style="width: {{ d.score }}%; background: var(--ar-score-{{ dim_level }});"></div></div>
       </div>
       {% endfor %}
     </div>

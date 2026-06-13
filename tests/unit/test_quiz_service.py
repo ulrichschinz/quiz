@@ -57,6 +57,53 @@ def test_new_quiz_ships_with_default_email_copy(engine) -> None:
     assert "{score}" in cfg.email_body_en
 
 
+def test_result_view_cta_defaults_to_booking_link(engine, seeded) -> None:
+    """With no per-tier CTA, the result CTA points at the landing contact anchor."""
+    with Session(engine) as s:
+        de = service.get_result_view(s, seeded, None, {}, "de")
+        en = service.get_result_view(s, seeded, None, {}, "en")
+
+    assert de.cta_url == "https://agentic-reach.com/?lang=de"
+    assert en.cta_url == "https://agentic-reach.com/?lang=en"
+    assert "Gespräch" in de.cta_label and "call" in en.cta_label.lower()
+
+
+def test_answer_breakdown_groups_answers_by_dimension(engine, seeded) -> None:
+    from sqlmodel import select
+
+    from app.domains.quizzes.models import AnswerOption, Question
+
+    with Session(engine) as s:
+        quiz = service.get_published_quiz(s, seeded)
+        assert quiz is not None
+        answers: dict[int, int] = {}
+        for q in s.exec(select(Question)).all():
+            best = s.exec(
+                select(AnswerOption).where(
+                    AnswerOption.question_id == q.id, AnswerOption.weight == 1.0
+                )
+            ).first()
+            assert q.id is not None and best is not None and best.id is not None
+            answers[q.id] = best.id
+        scored = service.score_submission(s, quiz, answers)
+        breakdown = service.get_answer_breakdown(s, quiz, answers, scored.dimension_scores, "de")
+
+    assert {d.name for d in breakdown}  # dimensions present
+    all_qs = [qa for d in breakdown for qa in d.questions]
+    # Every question is answered, and best (weight 1.0) answers earn full credit.
+    assert all_qs and all(qa.answered and qa.value == 100 for qa in all_qs)
+
+
+def test_answer_breakdown_marks_unanswered(engine, seeded) -> None:
+    with Session(engine) as s:
+        quiz = service.get_published_quiz(s, seeded)
+        assert quiz is not None
+        breakdown = service.get_answer_breakdown(s, quiz, {}, {}, "de")
+
+    qs = [qa for d in breakdown for qa in d.questions]
+    assert qs and all(not qa.answered and qa.value == 0 for qa in qs)
+
+
 def test_landing_view_falls_back_to_title(engine) -> None:
     from app.domains.quizzes.models import Quiz
 

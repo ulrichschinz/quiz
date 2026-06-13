@@ -16,6 +16,14 @@
   --ar-bg-cool:  #F1EEF4;   /* cool plum-tinted neutral · subtle alt */
   --ar-paper:    #FFFFFF;   /* card surface */
 
+  /* ── Color · Score levels (traffic-light, brand-harmonised) ── */
+  --ar-score-low:   #D1493B;   /* not ready · terracotta red */
+  --ar-score-mid:   #E8A13C;   /* getting there · warm amber */
+  --ar-score-high:  #4F9D69;   /* ready · sage green */
+  --ar-score-low-soft:  rgba(209, 73, 59, 0.14);   /* tinted fill/track */
+  --ar-score-mid-soft:  rgba(232, 161, 60, 0.16);
+  --ar-score-high-soft: rgba(79, 157, 105, 0.16);
+
   /* ── Color · Text ──────────────────────────────────── */
   --ar-mute:      rgba(27, 20, 40, 0.62);
   --ar-mute-soft: rgba(27, 20, 40, 0.40);

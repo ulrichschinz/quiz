@@ -12,7 +12,7 @@ that changes the structure.
 | Domains           | 2    |
 | Route-Module      | 4    |
 | HTTP-Endpoints    | 44   |
-| HTML-Templates    | 20   |
+| HTML-Templates    | 23   |
 | SQLModel-Tabellen | 8    |
 
 - **Domains** — sub-packages under `app/domains/` (`quizzes`, `submissions`).
@@ -21,7 +21,7 @@ that changes the structure.
 - **HTTP-Endpoints** — `@router.<method>` decorators across those modules
   (`GET /`, `GET /api/health`).
 - **HTML-Templates** — files under `templates/` (`base.html`,
-  `public/landing.html`).
+  `public/landing.html`, `email/result_customer.html`).
 - **SQLModel-Tabellen** — `class … (table=True)` definitions under `app/`.
 
 ## Struktur-Verträge (CI-erzwungen)
