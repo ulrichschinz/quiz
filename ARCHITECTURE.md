@@ -11,7 +11,7 @@ that changes the structure.
 | ----------------- | ---- |
 | Domains           | 2    |
 | Route-Module      | 4    |
-| HTTP-Endpoints    | 43   |
+| HTTP-Endpoints    | 44   |
 | HTML-Templates    | 20   |
 | SQLModel-Tabellen | 8    |
 

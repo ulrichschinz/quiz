@@ -89,6 +89,28 @@ def test_reorder_options_flips_weights(engine) -> None:
     assert by_label["best"].score_rank == 1 and by_label["best"].weight == 0.0
 
 
+def test_move_option_swaps_with_neighbour(engine) -> None:
+    with Session(engine) as s:
+        quiz = admin.create_quiz(s, "x", "X", "X")
+        admin.add_dimension(s, quiz.id, "d", "D", "D")
+        dim = admin.get_dimensions(s, quiz.id)[0]
+        admin.add_question(s, quiz.id, dim.id, "F", "Q")
+        q = admin.get_questions(s, quiz.id)[0]
+        for label in ("A", "B", "C"):  # ranks 0,1,2
+            admin.add_option(s, q.id, label, label)
+
+        c = next(o for o in admin.get_options(s, q.id) if o.label_de == "C")
+        admin.move_option(s, c.id, "up")  # C (rank 2) -> rank 1
+        ranks = {o.label_de: o.score_rank for o in admin.get_options(s, q.id)}
+        assert ranks == {"A": 0, "B": 2, "C": 1}
+
+        a = next(o for o in admin.get_options(s, q.id) if o.label_de == "A")
+        admin.move_option(s, a.id, "up")  # already best — no-op, stays consistent
+        ranks2 = {o.label_de: o.score_rank for o in admin.get_options(s, q.id)}
+        assert ranks2 == {"A": 0, "B": 2, "C": 1}
+        assert sorted(o.score_rank for o in admin.get_options(s, q.id)) == [0, 1, 2]
+
+
 def test_delete_option_repacks_ranks(engine) -> None:
     with Session(engine) as s:
         quiz = admin.create_quiz(s, "x", "X", "X")

@@ -123,6 +123,35 @@ def test_inline_add_option_shows_derived_percent(client, monkeypatch) -> None:
 
 
 @pytest.mark.e2e
+def test_move_option_reranks_without_js(client, monkeypatch) -> None:
+    # The ▲/▼ buttons are the no-JS / keyboard ranking path: a plain POST that
+    # 303-redirects, and re-derives the weights server-side.
+    quiz_id, question_id = _login_and_build(client, monkeypatch)
+    base = {"quiz_id": quiz_id}
+    client.post(
+        f"/admin/questions/{question_id}/options",
+        data={**base, "label_de": "Erst", "label_en": "First"},  # added first -> best
+        headers={"X-Inline": "1"},
+    )
+    client.post(
+        f"/admin/questions/{question_id}/options",
+        data={**base, "label_de": "Zweit", "label_en": "Second"},  # worst
+        headers={"X-Inline": "1"},
+    )
+    # No X-Inline header -> progressive-enhancement 303 redirect.
+    plain = client.post(
+        "/admin/options/2/move", data={"direction": "up"}, follow_redirects=False
+    )
+    assert plain.status_code == 303
+
+    # Option 2 ("Zweit") is now the best answer (100 %); inline path re-renders.
+    frag = client.post("/admin/options/2/move", data={"direction": "up"}, headers={"X-Inline": "1"})
+    assert frag.status_code == 200
+    # In rank order the first row is the best answer at 100 %.
+    assert frag.text.index("Zweit") < frag.text.index("Erst")
+
+
+@pytest.mark.e2e
 def test_inline_delete_recomputes_options(client, monkeypatch) -> None:
     quiz_id, question_id = _login_and_build(client, monkeypatch)
     base = {"quiz_id": quiz_id}

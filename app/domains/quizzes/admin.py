@@ -334,11 +334,14 @@ def get_option(session: Session, option_id: int) -> AnswerOption | None:
 
 
 def get_options(session: Session, question_id: int) -> list[AnswerOption]:
+    # Admin display order = the scoring ranking (best first), so a drag / move
+    # is immediately visible and stable. The player keeps its own position order
+    # (service.build_player_payload), independent of the ranking.
     return list(
         session.exec(
             select(AnswerOption)
             .where(AnswerOption.question_id == question_id)
-            .order_by(col(AnswerOption.position))
+            .order_by(col(AnswerOption.score_rank), col(AnswerOption.position))
         ).all()
     )
 
@@ -465,6 +468,35 @@ def reorder_options(session: Session, question_id: int, ordered_ids: list[int]) 
             rank += 1
     session.commit()
     _recompute_option_weights(session, question_id)
+
+
+def move_option(session: Session, option_id: int, direction: str) -> int | None:
+    """Swap an option's rank with its neighbour ('up' = better / toward rank 0,
+    'down' = worse) and re-derive weights. The keyboard- and no-JS-friendly
+    alternative to drag ranking. Returns the question_id for re-rendering."""
+    o = session.get(AnswerOption, option_id)
+    if o is None:
+        return None
+    question_id = o.question_id
+    options = list(
+        session.exec(
+            select(AnswerOption)
+            .where(AnswerOption.question_id == question_id)
+            .order_by(col(AnswerOption.score_rank), col(AnswerOption.position))
+        ).all()
+    )
+    idx = next((i for i, x in enumerate(options) if x.id == option_id), None)
+    if idx is None:
+        return question_id
+    swap = idx - 1 if direction == "up" else idx + 1
+    if 0 <= swap < len(options):
+        options[idx], options[swap] = options[swap], options[idx]
+        for rank, opt in enumerate(options):
+            opt.score_rank = rank
+            session.add(opt)
+        session.commit()
+        _recompute_option_weights(session, question_id)
+    return question_id
 
 
 def delete_option(session: Session, option_id: int) -> None:

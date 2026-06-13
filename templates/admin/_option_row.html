@@ -12,6 +12,8 @@
       <div class="ar-field"><label>Antwort (Englisch)</label><input name="label_en" value="{{ o.label_en }}"></div>
       <span class="opt-share" title="Automatisch aus der Rangfolge">{{ (o.weight * 100) | round | int }}%</span>
       <div class="opt-actions">
+        <button formaction="/admin/options/{{ o.id }}/move" name="direction" value="up" class="ar-btn ar-btn-ghost opt-move" aria-label="Antwort höher einstufen (besser)" title="Höher (besser)">▲</button>
+        <button formaction="/admin/options/{{ o.id }}/move" name="direction" value="down" class="ar-btn ar-btn-ghost opt-move" aria-label="Antwort niedriger einstufen (schlechter)" title="Niedriger (schlechter)">▼</button>
         <button class="ar-btn ar-btn-primary">OK</button>
         <button formaction="/admin/options/{{ o.id }}/delete" class="ar-btn ar-btn-ghost" aria-label="Antwort löschen">✕</button>
       </div>

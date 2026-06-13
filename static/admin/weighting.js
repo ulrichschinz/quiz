@@ -138,15 +138,39 @@
 
   function paint(panel) {
     var sliders = weightSliders(panel);
-    var sum = 0;
-    sliders.forEach(function (s) {
-      var v = Math.round(Number(s.value));
-      sum += v;
+    if (!sliders.length) {
+      preview(panel);
+      return;
+    }
+    // Round each share for display, then park the rounding remainder on the
+    // largest one so the SHOWN integers always sum to exactly 100 (mirrors the
+    // server's _normalize_dimensions). Without this, 7 equal shares would each
+    // round to 14 and the panel would read 98 %, contradicting "immer 100 %".
+    var rounded = sliders.map(function (s) {
+      return Math.round(Number(s.value));
+    });
+    var sum = rounded.reduce(function (a, b) {
+      return a + b;
+    }, 0);
+    var drift = 100 - sum;
+    if (drift !== 0) {
+      var biggest = 0;
+      for (var i = 1; i < rounded.length; i++) {
+        if (rounded[i] > rounded[biggest]) biggest = i;
+      }
+      rounded[biggest] += drift;
+    }
+    sliders.forEach(function (s, i) {
       var val = s.parentNode.querySelector("[data-weight-val]");
-      if (val) val.textContent = v + "%";
+      if (val) val.textContent = rounded[i] + "%";
     });
     var sumEl = panel.querySelector("[data-weights-sum]");
-    if (sumEl) sumEl.textContent = Math.round(sum) + "%";
+    if (sumEl) {
+      sumEl.textContent =
+        rounded.reduce(function (a, b) {
+          return a + b;
+        }, 0) + "%";
+    }
     preview(panel);
   }
 
@@ -185,7 +209,8 @@
     }
   });
 
-  // initial paint for any panel already on the page / freshly swapped in
+  // Paint every panel on the page (initial load + after a section is swapped in
+  // by admin-workspace.js, so the rounding correction re-applies).
   function initPanels() {
     document.querySelectorAll("[data-weights]").forEach(paint);
   }
@@ -194,4 +219,17 @@
   } else {
     initPanels();
   }
+  // Inline-save replaces whole sections; repaint any freshly inserted panel.
+  var observer = new MutationObserver(function (mutations) {
+    for (var i = 0; i < mutations.length; i++) {
+      var added = mutations[i].addedNodes;
+      for (var j = 0; j < added.length; j++) {
+        var node = added[j];
+        if (node.nodeType !== 1) continue;
+        if (node.matches && node.matches("[data-weights]")) paint(node);
+        if (node.querySelectorAll) node.querySelectorAll("[data-weights]").forEach(paint);
+      }
+    }
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
 })();

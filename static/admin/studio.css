@@ -275,6 +275,7 @@ a.tile:hover { transform: translateY(-3px); box-shadow: var(--ar-shadow-md); }
 }
 .opt-drag:active { cursor: grabbing; }
 .opt-row.opt-dragging { opacity: 0.45; }
+.opt-move { padding-left: 10px; padding-right: 10px; font-size: var(--ar-text-sm); line-height: 1; }
 .opt-share {
   display: inline-flex;
   align-items: center;

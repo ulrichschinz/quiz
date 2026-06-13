@@ -137,6 +137,13 @@ def _options_response(
     return _redirect_back(request, quiz_id)
 
 
+def _question_quiz_id(session: Session, question_id: int) -> int | None:
+    """Resolve the owning quiz_id from a question (trusted source), so option
+    routes never render against a quiz_id smuggled through the form."""
+    q = quizzes_admin.get_question(session, question_id)
+    return q.quiz_id if q is not None else None
+
+
 def _parse_weights(form: dict[str, str]) -> dict[int, float]:
     """Pull `weight_<dim_id>` slider fields out of a posted form into {id: value}.
     Unparseable values are skipped (the server renormalises whatever it gets)."""
@@ -576,13 +583,16 @@ def delete_question(
 def add_option(
     question_id: int,
     request: Request,
-    quiz_id: int = Form(...),
     label_de: str = Form(""),
     label_en: str = Form(""),
     session: Session = Depends(get_session),
 ):
     # No weight field any more — a new answer joins as the worst-ranked option
-    # and the whole question's weights are re-derived from the ranking.
+    # and the whole question's weights are re-derived from the ranking. quiz_id
+    # is resolved from the question, never trusted from the form.
+    quiz_id = _question_quiz_id(session, question_id)
+    if quiz_id is None:
+        return _invalid(request, 0, "Frage nicht gefunden.")
     quizzes_admin.add_option(session, question_id, label_de, label_en)
     return _options_response(request, session, quiz_id, question_id)
 
@@ -591,7 +601,6 @@ def add_option(
 def update_option(
     option_id: int,
     request: Request,
-    quiz_id: int = Form(...),
     label_de: str = Form(""),
     label_en: str = Form(""),
     position: int = Form(0),
@@ -599,8 +608,11 @@ def update_option(
 ):
     o = quizzes_admin.get_option(session, option_id)
     if o is None:
-        return _invalid(request, quiz_id, "Antwort nicht gefunden.")
+        return _invalid(request, 0, "Antwort nicht gefunden.")
     question_id = o.question_id
+    quiz_id = _question_quiz_id(session, question_id)
+    if quiz_id is None:
+        return _invalid(request, 0, "Frage nicht gefunden.")
     quizzes_admin.update_option(
         session, option_id, label_de=label_de, label_en=label_en, position=position
     )
@@ -613,10 +625,30 @@ async def reorder_options(
 ):
     """Drag & drop ranking: a best→worst list of option ids (`order=<id>` repeated)
     sets the ranks and re-derives weights."""
+    quiz_id = _question_quiz_id(session, question_id)
+    if quiz_id is None:
+        return _invalid(request, 0, "Frage nicht gefunden.")
     form = await request.form()
-    quiz_id = _parse_int(str(form.get("quiz_id", "0")))
     ordered_ids = [int(v) for v in form.getlist("order") if str(v).isdigit()]
     quizzes_admin.reorder_options(session, question_id, ordered_ids)
+    return _options_response(request, session, quiz_id, question_id)
+
+
+@router.post("/options/{option_id}/move")
+def move_option(
+    option_id: int,
+    request: Request,
+    direction: str = Form("up"),
+    session: Session = Depends(get_session),
+):
+    """Keyboard- and no-JS-friendly ranking: nudge an option one step better
+    ('up') or worse ('down')."""
+    question_id = quizzes_admin.move_option(session, option_id, direction)
+    if question_id is None:
+        return _invalid(request, 0, "Antwort nicht gefunden.")
+    quiz_id = _question_quiz_id(session, question_id)
+    if quiz_id is None:
+        return _invalid(request, 0, "Frage nicht gefunden.")
     return _options_response(request, session, quiz_id, question_id)
 
 
@@ -624,15 +656,17 @@ async def reorder_options(
 def delete_option(
     option_id: int,
     request: Request,
-    quiz_id: int = Form(...),
+    quiz_id: int = Form(0),
     session: Session = Depends(get_session),
 ):
     o = quizzes_admin.get_option(session, option_id)
     question_id = o.question_id if o is not None else None
+    # Resolve the quiz from the question before the delete, not from the form.
+    resolved = _question_quiz_id(session, question_id) if question_id is not None else None
     quizzes_admin.delete_option(session, option_id)
-    if question_id is None:
+    if question_id is None or resolved is None:
         return _saved(request, quiz_id)
-    return _options_response(request, session, quiz_id, question_id)
+    return _options_response(request, session, resolved, question_id)
 
 
 # --- Tiers -----------------------------------------------------------------
