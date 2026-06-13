@@ -21,7 +21,9 @@ from app.domains.quizzes.models import (
     ResultTier,
 )
 from app.domains.quizzes.schemas import (
+    AnsweredQuestion,
     BenefitPublic,
+    DimensionBreakdown,
     DimensionPublic,
     DimensionScoreView,
     EmailConfig,
@@ -33,6 +35,7 @@ from app.domains.quizzes.schemas import (
     ScoreResult,
 )
 from app.shared.i18n import pick
+from app.shared.links import call_booking_url, call_label
 
 
 def get_published_quiz(session: Session, slug: str) -> Quiz | None:
@@ -205,16 +208,91 @@ def get_result_view(
         for d in dims
     ]
 
+    # The "book a call" CTA defaults to the landing page contact anchor (in the
+    # visitor's language); a tier may override the URL/label per band.
+    tier_cta_label = pick(tier.cta_label_de, tier.cta_label_en, lang) if tier else ""
+    tier_cta_url = (tier.cta_url if tier else None) or ""
+
     return ResultView(
         intro=pick(cfg.intro_de, cfg.intro_en, lang) if cfg else "",
         show_breakdown=cfg.show_dimension_breakdown if cfg else True,
         tier_name=pick(tier.name_de, tier.name_en, lang) if tier else "",
         tier_headline=pick(tier.headline_de, tier.headline_en, lang) if tier else "",
         tier_body=pick(tier.body_de, tier.body_en, lang) if tier else "",
-        cta_label=pick(tier.cta_label_de, tier.cta_label_en, lang) if tier else None,
-        cta_url=tier.cta_url if tier else None,
+        cta_label=tier_cta_label or call_label(lang),
+        cta_url=tier_cta_url or call_booking_url(lang),
         dimensions=dimension_views,
     )
+
+
+def get_answer_breakdown(
+    session: Session,
+    quiz: Quiz,
+    answers: dict[int, int],
+    dimension_scores: dict[str, int],
+    lang: str,
+) -> list[DimensionBreakdown]:
+    """Group the lead's answers by dimension for the internal team email.
+
+    Each answered question carries the chosen label and the option's 0–100 credit
+    (best answer = 100) so the team can spot strengths and weak spots at a glance.
+    Questions follow their player order; `lang` matches what the lead actually saw.
+    """
+    dims = session.exec(
+        select(Dimension).where(Dimension.quiz_id == quiz.id).order_by(col(Dimension.position))
+    ).all()
+    questions = session.exec(
+        select(Question).where(Question.quiz_id == quiz.id).order_by(col(Question.position))
+    ).all()
+    options = (
+        session.exec(
+            select(AnswerOption).where(col(AnswerOption.question_id).in_([q.id for q in questions]))
+        ).all()
+        if questions
+        else []
+    )
+
+    opt_by_id = {o.id: o for o in options}
+    count_by_q: dict[int, int] = {}
+    for o in options:
+        count_by_q[o.question_id] = count_by_q.get(o.question_id, 0) + 1
+
+    out: list[DimensionBreakdown] = []
+    for d in dims:
+        answered: list[AnsweredQuestion] = []
+        for q in (q for q in questions if q.dimension_id == d.id):
+            if q.id is None:
+                continue
+            chosen = opt_by_id.get(answers.get(q.id, -1))
+            if chosen is not None and chosen.question_id == q.id:
+                value = round(
+                    scoring.weight_for_rank(chosen.score_rank, count_by_q.get(q.id, 1)) * 100
+                )
+                answered.append(
+                    AnsweredQuestion(
+                        question=pick(q.text_de, q.text_en, lang),
+                        answer=pick(chosen.label_de, chosen.label_en, lang),
+                        value=value,
+                        answered=True,
+                    )
+                )
+            else:
+                answered.append(
+                    AnsweredQuestion(
+                        question=pick(q.text_de, q.text_en, lang),
+                        answer="—",
+                        value=0,
+                        answered=False,
+                    )
+                )
+        out.append(
+            DimensionBreakdown(
+                name=pick(d.name_de, d.name_en, lang),
+                score=dimension_scores.get(d.key, 0),
+                questions=answered,
+            )
+        )
+    return out
 
 
 def get_result_email_config(session: Session, quiz: Quiz, lang: str) -> EmailConfig:

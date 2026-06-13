@@ -1,0 +1,68 @@
+{% extends "email/_base.html" %}
+{% block subject %}Neuer Lead: {{ overall_score }}/100{% endblock %}
+
+{% block content %}
+  <p style="margin:0 0 6px; font-family:'Courier New',monospace; font-size:12px; letter-spacing:.06em; color:#857f91; text-transform:uppercase;">// Neuer Scorecard-Lead</p>
+
+  {# Lead contact card #}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px; background:#F4ECE0; border-radius:14px;">
+    <tr>
+      <td style="padding:18px 20px;">
+        <div style="font-size:18px; font-weight:700; color:#1B1428;">{{ lead_name }}</div>
+        <div style="font-size:14px; color:#3a3447; margin-top:4px;">{{ lead_company }}</div>
+        <div style="font-size:14px; margin-top:8px;"><a href="mailto:{{ lead_email }}" style="color:#FF7A6B; text-decoration:none;">{{ lead_email }}</a></div>
+        <div style="font-family:'Courier New',monospace; font-size:12px; color:#857f91; margin-top:8px;">Einwilligung: {{ 'ja' if consent else 'nein' }}</div>
+      </td>
+      <td align="right" valign="top" style="padding:18px 20px;">
+        <div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:40px; font-weight:700; line-height:1; color:{{ overall_color }};">{{ overall_score }}<span style="font-size:15px; color:#857f91; font-weight:400;">/100</span></div>
+        {% if tier_name %}<div style="font-family:'Courier New',monospace; font-size:12px; letter-spacing:.05em; color:{{ overall_color }}; margin-top:6px;">{{ tier_name|upper }}</div>{% endif %}
+      </td>
+    </tr>
+  </table>
+
+  {# Per-dimension breakdown with the chosen answers #}
+  {% for dim in breakdown %}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;">
+    <tr>
+      <td style="font-size:15px; font-weight:600; color:#1B1428; padding-bottom:6px;">{{ dim.name }}</td>
+      <td align="right" style="font-family:'Courier New',monospace; font-size:13px; color:{{ level_color(dim.score) }}; padding-bottom:6px;">{{ dim.score }}/100</td>
+    </tr>
+    <tr>
+      <td colspan="2" style="background:#ECE6DC; border-radius:999px; height:6px; line-height:6px; font-size:0;">
+        <table role="presentation" width="{{ dim.score }}%" cellpadding="0" cellspacing="0" border="0">
+          <tr><td style="background:{{ level_color(dim.score) }}; border-radius:999px; height:6px; line-height:6px; font-size:0;">&nbsp;</td></tr>
+        </table>
+      </td>
+    </tr>
+    {% for qa in dim.questions %}
+    <tr>
+      <td colspan="2" style="padding:10px 0 0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="font-size:13px; color:#3a3447; line-height:1.4;">
+              <span style="color:#857f91;">{{ qa.question }}</span><br>
+              <strong style="color:#1B1428;">{{ qa.answer }}</strong>
+            </td>
+            <td align="right" valign="top" style="white-space:nowrap; padding-left:12px;">
+              {% if qa.answered %}
+              <span style="display:inline-block; font-family:'Courier New',monospace; font-size:12px; color:#FFFFFF; background:{{ level_color(qa.value) }}; border-radius:999px; padding:3px 10px;">{{ qa.value }}/100</span>
+              {% else %}
+              <span style="display:inline-block; font-family:'Courier New',monospace; font-size:12px; color:#857f91; border:1px solid #E7DFD2; border-radius:999px; padding:2px 9px;">k. A.</span>
+              {% endif %}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endfor %}
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:22px auto 0;">
+    <tr>
+      <td align="center" style="border-radius:999px; background:#3D2B5C;">
+        <a href="{{ result_url }}" style="display:inline-block; padding:13px 26px; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:14px; font-weight:600; color:#FFFFFF; text-decoration:none; border-radius:999px;">Vollständiges Ergebnis ansehen →</a>
+      </td>
+    </tr>
+  </table>
+{% endblock %}

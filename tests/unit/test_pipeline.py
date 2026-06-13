@@ -30,14 +30,45 @@ def test_pipeline_skips_cleanly_when_unconfigured(engine) -> None:
         sub = _make_submission(s)
         pipeline.dispatch(
             s, sub,
-            email_subject="Score {score}",
-            email_body="{name} {score} {tier} {url}",
+            customer_subject="Score 72",
+            customer_text="Hi Dana, 72/100",
+            customer_html="<p>Hi Dana</p>",
+            team_subject="Neuer Lead: 72/100",
+            team_text="Lead breakdown",
+            team_html="<p>Lead</p>",
             notify_emails="team@example.com",
             result_url="/r/x",
         )
         # No env → both legs skip; nothing flagged, nothing raised.
         assert sub.crm_pushed is False and sub.crm_error is None
         assert sub.email_sent is False and sub.email_error is None
+
+
+def test_customer_email_carries_html_alternative(engine, monkeypatch) -> None:
+    monkeypatch.setenv("SMTP_HOST", "smtp.test")
+
+    captured: list = []
+    monkeypatch.setattr(pipeline, "_smtp_send", lambda settings, messages: captured.extend(messages))
+
+    with Session(engine) as s:
+        sub = _make_submission(s)
+        pipeline._send_emails(
+            s, sub,
+            customer_subject="Dein Ergebnis: 72/100",
+            customer_text="Hallo Dana, plaintext fallback.",
+            customer_html="<h1>72/100</h1>",
+            team_subject="Neuer Lead: 72/100",
+            team_text="Lead breakdown plaintext",
+            team_html="<h1>Lead</h1>",
+            notify_emails="team@example.com",
+        )
+        assert sub.email_sent is True and sub.email_error is None
+
+    # Both messages carry their html alternative.
+    lead = next(m for m in captured if m[0] == "lead@example.com")
+    team = next(m for m in captured if m[0] == "team@example.com")
+    assert lead[2] == "Hallo Dana, plaintext fallback." and lead[3] == "<h1>72/100</h1>"
+    assert team[2] == "Lead breakdown plaintext" and team[3] == "<h1>Lead</h1>"
 
 
 def test_crm_push_success_flags_submission(engine, monkeypatch) -> None:

@@ -18,9 +18,15 @@ from sqlmodel import Session
 from app.core.db import get_session
 from app.domains.quizzes import service as quizzes_service
 from app.domains.submissions import service as submissions_service
+from app.shared.charts import radar_geometry
+from app.shared.scoring_display import score_level
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+# Available in every template: score_level(0-100) -> "low"|"mid"|"high" drives
+# the traffic-light colour, radar_geometry builds the results-page net chart.
+templates.env.globals["score_level"] = score_level
+templates.env.globals["radar_geometry"] = radar_geometry
 
 
 @router.get("/", response_class=HTMLResponse)

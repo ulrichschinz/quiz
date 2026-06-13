@@ -80,6 +80,23 @@ class DimensionScoreView(BaseModel):
     score: int
 
 
+class AnsweredQuestion(BaseModel):
+    """One question + the lead's chosen answer, for the internal team email."""
+
+    question: str
+    answer: str
+    value: int  # 0–100 credit for the chosen option (best answer = 100)
+    answered: bool
+
+
+class DimensionBreakdown(BaseModel):
+    """A dimension's score plus the lead's answers within it."""
+
+    name: str
+    score: int
+    questions: list[AnsweredQuestion]
+
+
 class EmailConfig(BaseModel):
     """Result-email settings for a quiz, resolved to one language."""
 

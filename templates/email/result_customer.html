@@ -1,0 +1,65 @@
+{% extends "email/_base.html" %}
+{% block subject %}{{ tier_headline or ('Dein Ergebnis' if lang == 'de' else 'Your result') }}{% endblock %}
+
+{% block content %}
+  {# Personal message (admin copy, already placeholder-substituted) #}
+  <p style="margin:0 0 24px; font-size:16px; line-height:1.55; color:#1B1428;">{{ intro_html|safe }}</p>
+
+  {# Score block — big number + traffic-light progress bar (bulletproof table bar) #}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
+    <tr>
+      <td align="center" style="padding:26px 24px; background:#F4ECE0; border-radius:14px;">
+        <div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:52px; font-weight:700; line-height:1; color:{{ overall_color }};">{{ overall_score }}<span style="font-size:18px; color:#857f91; font-weight:400;">/100</span></div>
+        {% if tier_name %}
+        <div style="margin-top:8px; font-family:'Courier New',monospace; font-size:13px; letter-spacing:.06em; color:{{ overall_color }};">{{ tier_name|upper }}</div>
+        {% endif %}
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:18px;">
+          <tr>
+            <td style="background:#E7DFD2; border-radius:999px; height:10px; line-height:10px; font-size:0;">
+              <table role="presentation" width="{{ overall_score }}%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td style="background:{{ overall_color }}; border-radius:999px; height:10px; line-height:10px; font-size:0;">&nbsp;</td></tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  {# Tier evaluation copy #}
+  {% if tier_headline %}
+  <h1 style="margin:0 0 8px; font-size:22px; line-height:1.25; color:#1B1428;">{{ tier_headline }}</h1>
+  {% endif %}
+  {% if tier_body %}
+  <p style="margin:0 0 26px; font-size:15px; line-height:1.55; color:#3a3447;">{{ tier_body }}</p>
+  {% endif %}
+
+  {# Per-dimension breakdown — coloured bars #}
+  {% if show_breakdown and dimensions %}
+  <p style="margin:0 0 14px; font-family:'Courier New',monospace; font-size:12px; letter-spacing:.06em; color:#857f91; text-transform:uppercase;">// {{ 'Deine Dimensionen' if lang == 'de' else 'Your dimensions' }}</p>
+  {% for d in dimensions %}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px;">
+    <tr>
+      <td style="font-size:14px; color:#1B1428; padding-bottom:5px;">{{ d.name }}</td>
+      <td align="right" style="font-family:'Courier New',monospace; font-size:13px; color:{{ d.color }}; padding-bottom:5px;">{{ d.score }}/100</td>
+    </tr>
+    <tr>
+      <td colspan="2" style="background:#ECE6DC; border-radius:999px; height:8px; line-height:8px; font-size:0;">
+        <table role="presentation" width="{{ d.score }}%" cellpadding="0" cellspacing="0" border="0">
+          <tr><td style="background:{{ d.color }}; border-radius:999px; height:8px; line-height:8px; font-size:0;">&nbsp;</td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+  {% endfor %}
+  {% endif %}
+
+  {# Call to action — tier CTA if set, else "view full result" #}
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:28px auto 0;">
+    <tr>
+      <td align="center" style="border-radius:999px; background:#FF7A6B;">
+        <a href="{{ cta_url or result_url }}" style="display:inline-block; padding:14px 30px; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:15px; font-weight:600; color:#FFFFFF; text-decoration:none; border-radius:999px;">{{ cta_label or ('Vollständige Auswertung ansehen →' if lang == 'de' else 'View full result →') }}</a>
+      </td>
+    </tr>
+  </table>
+{% endblock %}

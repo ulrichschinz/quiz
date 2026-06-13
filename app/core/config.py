@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     crm_ingest_url: str = ""
     crm_api_key: str = ""
 
+    # --- Score levels: traffic-light thresholds (applied to any 0–100 score) ---
+    # score < mid => "low" (red), < high => "mid" (orange), else "high" (green).
+    score_threshold_mid: int = 40
+    score_threshold_high: int = 70
+
     # --- Lead pipeline: SMTP email (empty host => leg skipped) ---
     smtp_host: str = ""
     smtp_port: int = 587

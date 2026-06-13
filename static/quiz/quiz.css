@@ -53,6 +53,16 @@
   line-height: 1;
   color: var(--ar-coral);
 }
+.score-dial {
+  width: 132px;
+  height: 132px;
+  flex: none;
+}
+.dim-radar {
+  width: 100%;
+  max-width: 360px;
+  height: auto;
+}
 .dim-row {
   margin-bottom: var(--ar-space-5);
 }
