@@ -15,6 +15,24 @@ Model:
 from __future__ import annotations
 
 
+def weight_for_rank(rank: int, option_count: int) -> float:
+    """Derive an option's 0.0–1.0 weight from its scoring rank.
+
+    Rank 0 is the best answer (full credit), the last rank is the worst (zero).
+    Evenly spaced in between, so for 4 options the shares are 1.0 / 0.667 /
+    0.333 / 0.0. This is the single source of truth for the option-ranking
+    weighting model — the admin service recomputes weights from ranks on every
+    change, and the 0002 migration backfills legacy rows with the same formula.
+
+    A single option (or a defensively clamped count) always scores full credit;
+    out-of-range ranks are clamped into [0, option_count - 1].
+    """
+    if option_count <= 1:
+        return 1.0
+    rank = max(0, min(rank, option_count - 1))
+    return (option_count - 1 - rank) / (option_count - 1)
+
+
 def dimension_score(selected_weights: list[float]) -> int:
     """Mean of the answered options' weights, scaled to 0–100."""
     if not selected_weights:

@@ -1,17 +1,17 @@
-{# One Bereich (dimension) row. Inline-save replace target = the wrapping
-   [data-replace]/[data-card]. Field names mirror update_dimension. The technical
-   "interner Code" (key, required by scoring) hides under Erweitert but still
-   posts (a closed <details> submits its fields). #}
-<div class="opt-row" data-card data-replace>
+{# One Bereich (dimension) row: name + delete. The technical "interner Code"
+   (key) and order hide under Erweitert but still post. The percent share is NOT
+   here — it lives in the Themen-Anteile slider panel below (one place, always
+   summing to 100). Part of the dimensions section (the inline-replace unit).
+   Field names mirror update_dimension. Needs `d`, `quiz`. #}
+<div class="opt-row" data-card>
   <form method="post" action="/admin/dimensions/{{ d.id }}" data-inline>
     <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
     <div class="opt-grid">
       <div class="ar-field"><label>Bereich (Deutsch)</label><input name="name_de" value="{{ d.name_de }}"></div>
       <div class="ar-field"><label>Bereich (Englisch)</label><input name="name_en" value="{{ d.name_en }}"></div>
-      <div class="ar-field opt-weight"><label>Gewicht</label><input name="weight" inputmode="decimal" value="{{ d.weight }}"></div>
       <div class="opt-actions">
         <button class="ar-btn ar-btn-primary">OK</button>
-        <button formaction="/admin/dimensions/{{ d.id }}/delete" data-mode="remove" class="ar-btn ar-btn-ghost" aria-label="Bereich löschen">✕</button>
+        <button formaction="/admin/dimensions/{{ d.id }}/delete" class="ar-btn ar-btn-ghost" aria-label="Bereich löschen">✕</button>
       </div>
     </div>
     <details class="admin-advanced">

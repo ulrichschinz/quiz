@@ -85,57 +85,92 @@ def test_inline_add_option_returns_fragment_not_redirect(client, monkeypatch) ->
     # No header -> the no-JS path still 303-redirects (progressive enhancement).
     plain = client.post(
         f"/admin/questions/{question_id}/options",
-        data={"quiz_id": quiz_id, "label_de": "Ja", "label_en": "Yes", "weight": "1.0"},
+        data={"quiz_id": quiz_id, "label_de": "Ja", "label_en": "Yes"},
         follow_redirects=False,
     )
     assert plain.status_code == 303
 
-    # With X-Inline -> a standalone option-row fragment, no full page.
+    # With X-Inline -> the re-rendered options section, no full page.
     frag = client.post(
         f"/admin/questions/{question_id}/options",
-        data={"quiz_id": quiz_id, "label_de": "Nein", "label_en": "No", "weight": "0.0"},
+        data={"quiz_id": quiz_id, "label_de": "Nein", "label_en": "No"},
         headers={"X-Inline": "1"},
     )
     assert frag.status_code == 200
-    assert 'data-card data-replace' in frag.text
+    assert "data-options" in frag.text  # the re-rendered options section wrapper
     assert "Nein" in frag.text
     assert "<html" not in frag.text  # a fragment, not the whole editor page
 
 
 @pytest.mark.e2e
-def test_inline_accepts_german_decimal_comma(client, monkeypatch) -> None:
+def test_inline_add_option_shows_derived_percent(client, monkeypatch) -> None:
+    # Options have no weight field any more — the value is derived from the
+    # ranking (add order = best → worst) and rendered read-only as a %.
     quiz_id, question_id = _login_and_build(client, monkeypatch)
-    ok = client.post(
+    base = {"quiz_id": quiz_id}
+    client.post(
         f"/admin/questions/{question_id}/options",
-        data={"quiz_id": quiz_id, "label_de": "Halb", "label_en": "Half", "weight": "0,5"},
+        data={**base, "label_de": "Best", "label_en": "Best"},
         headers={"X-Inline": "1"},
     )
-    assert ok.status_code == 200
-    assert 'value="0.5"' in ok.text  # "0,5" was parsed to 0.5
-
-    bad = client.post(
+    frag = client.post(
         f"/admin/questions/{question_id}/options",
-        data={"quiz_id": quiz_id, "label_de": "X", "label_en": "X", "weight": "abc"},
+        data={**base, "label_de": "Worst", "label_en": "Worst"},
         headers={"X-Inline": "1"},
     )
-    assert bad.status_code == 422
-    assert "Gewicht" in bad.text
+    assert frag.status_code == 200
+    assert "100%" in frag.text and "0%" in frag.text  # extremes derived from rank
 
 
 @pytest.mark.e2e
-def test_inline_delete_returns_204(client, monkeypatch) -> None:
+def test_move_option_reranks_without_js(client, monkeypatch) -> None:
+    # The ▲/▼ buttons are the no-JS / keyboard ranking path: a plain POST that
+    # 303-redirects, and re-derives the weights server-side.
     quiz_id, question_id = _login_and_build(client, monkeypatch)
+    base = {"quiz_id": quiz_id}
     client.post(
         f"/admin/questions/{question_id}/options",
-        data={"quiz_id": quiz_id, "label_de": "Ja", "label_en": "Yes", "weight": "1.0"},
+        data={**base, "label_de": "Erst", "label_en": "First"},  # added first -> best
         headers={"X-Inline": "1"},
     )
-    gone = client.post(
-        f"/admin/options/1/delete",
-        data={"quiz_id": quiz_id},
+    client.post(
+        f"/admin/questions/{question_id}/options",
+        data={**base, "label_de": "Zweit", "label_en": "Second"},  # worst
         headers={"X-Inline": "1"},
     )
-    assert gone.status_code == 204
+    # No X-Inline header -> progressive-enhancement 303 redirect.
+    plain = client.post(
+        "/admin/options/2/move", data={"direction": "up"}, follow_redirects=False
+    )
+    assert plain.status_code == 303
+
+    # Option 2 ("Zweit") is now the best answer (100 %); inline path re-renders.
+    frag = client.post("/admin/options/2/move", data={"direction": "up"}, headers={"X-Inline": "1"})
+    assert frag.status_code == 200
+    # In rank order the first row is the best answer at 100 %.
+    assert frag.text.index("Zweit") < frag.text.index("Erst")
+
+
+@pytest.mark.e2e
+def test_inline_delete_recomputes_options(client, monkeypatch) -> None:
+    quiz_id, question_id = _login_and_build(client, monkeypatch)
+    base = {"quiz_id": quiz_id}
+    client.post(
+        f"/admin/questions/{question_id}/options",
+        data={**base, "label_de": "Ja", "label_en": "Yes"},
+        headers={"X-Inline": "1"},
+    )
+    client.post(
+        f"/admin/questions/{question_id}/options",
+        data={**base, "label_de": "Nein", "label_en": "No"},
+        headers={"X-Inline": "1"},
+    )
+    # Delete the first (best) option -> the section re-renders and the survivor
+    # becomes the only answer at 100 %.
+    resp = client.post("/admin/options/1/delete", data=base, headers={"X-Inline": "1"})
+    assert resp.status_code == 200
+    assert "data-options" in resp.text
+    assert "100%" in resp.text
 
 
 @pytest.mark.e2e
@@ -195,12 +230,12 @@ def test_add_dimension_derives_key_from_name(client, monkeypatch) -> None:
     quiz_id, _ = _login_and_build(client, monkeypatch)
     r = client.post(
         f"/admin/quizzes/{quiz_id}/dimensions",
-        data={"name_de": "Strategie & Vision", "name_en": "Strategy", "weight": "1.0"},
+        data={"name_de": "Strategie & Vision", "name_en": "Strategy"},
         headers={"X-Inline": "1"},
     )
     assert r.status_code == 200
     assert 'value="strategie_vision"' in r.text  # key derived from the German name
-    assert "data-card data-replace" in r.text  # rendered back as a dimension row
+    assert "data-dimensions" in r.text  # rendered back as the dimensions section
 
 
 @pytest.mark.e2e

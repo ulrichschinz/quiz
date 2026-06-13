@@ -14,6 +14,7 @@ import json
 from sqlmodel import Session, select
 
 from app.core.db import create_db, engine
+from app.domains.quizzes import scoring
 from app.domains.quizzes.models import (
     AnswerOption,
     Dimension,
@@ -26,12 +27,13 @@ from app.domains.quizzes.models import (
 
 SLUG = "agentic-ai-readiness"
 
-# Likert options shared by every question: label pairs + weight (0.0–1.0).
+# Likert options shared by every question, best → worst. The order IS the
+# ranking: `score_rank` is the index, `weight` is derived from it.
 SCALE = [
-    ({"de": "Trifft nicht zu", "en": "Not at all"}, 0.0),
-    ({"de": "Eher nicht", "en": "Somewhat not"}, 0.33),
-    ({"de": "Eher schon", "en": "Somewhat yes"}, 0.67),
-    ({"de": "Trifft voll zu", "en": "Fully"}, 1.0),
+    {"de": "Trifft voll zu", "en": "Fully"},
+    {"de": "Eher schon", "en": "Somewhat yes"},
+    {"de": "Eher nicht", "en": "Somewhat not"},
+    {"de": "Trifft nicht zu", "en": "Not at all"},
 ]
 
 # (key, name_de, name_en, [ (text_de, text_en), ... ])
@@ -173,7 +175,7 @@ def _seed(session: Session) -> None:
             key=key,
             name_de=name_de,
             name_en=name_en,
-            weight=1.0,
+            weight=round(100 / len(DIMENSIONS), 1),  # equal percent share by default
             position=d_pos,
         )
         session.add(dim)
@@ -194,14 +196,15 @@ def _seed(session: Session) -> None:
             session.refresh(question)
             assert question.id is not None
 
-            for o_pos, (labels, weight) in enumerate(SCALE):
+            for rank, labels in enumerate(SCALE):
                 session.add(
                     AnswerOption(
                         question_id=question.id,
                         label_de=labels["de"],
                         label_en=labels["en"],
-                        weight=weight,
-                        position=o_pos,
+                        score_rank=rank,
+                        weight=scoring.weight_for_rank(rank, len(SCALE)),
+                        position=rank,
                     )
                 )
             session.commit()
