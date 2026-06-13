@@ -41,7 +41,10 @@ class Dimension(SQLModel, table=True):
     key: str = Field(index=True)  # stable code, e.g. "strategy_vision"
     name_de: str = ""
     name_en: str = ""
-    weight: float = Field(default=1.0)  # roll-up weight into the overall score
+    # Roll-up share of the overall score, stored as a percent (all dimensions of
+    # a quiz sum to ~100). The admin keeps the sum at 100; `scoring.overall_score`
+    # normalises by the sum defensively, so any positive scale still works.
+    weight: float = Field(default=1.0)
     position: int = Field(default=0)
 
 
@@ -63,7 +66,13 @@ class AnswerOption(SQLModel, table=True):
     question_id: int = Field(foreign_key="question.id", index=True)
     label_de: str = ""
     label_en: str = ""
-    weight: float = Field(default=0.0)  # fraction 0.0–1.0 of the question's max
+    # `score_rank` (0 = best answer) is the source of truth for an option's
+    # value; `weight` (fraction 0.0–1.0 of the question's max) is *derived* from
+    # the rank via `scoring.weight_for_rank` and recomputed on every edit. Ranks
+    # are unique + gap-free within a question, so duplicate/missing-max weights
+    # are structurally impossible. `position` stays the player display order.
+    score_rank: int = Field(default=0)
+    weight: float = Field(default=0.0)
     position: int = Field(default=0)
 
 

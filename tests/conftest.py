@@ -67,7 +67,9 @@ def seeded(engine) -> str:
         s.refresh(quiz)
 
         for i, key in enumerate(["alpha", "beta"]):
-            d = Dimension(quiz_id=quiz.id, key=key, name_de=key.upper(), name_en=key, position=i)
+            d = Dimension(
+                quiz_id=quiz.id, key=key, name_de=key.upper(), name_en=key, weight=50.0, position=i
+            )
             s.add(d)
             s.commit()
             s.refresh(d)
@@ -75,8 +77,9 @@ def seeded(engine) -> str:
             s.add(q)
             s.commit()
             s.refresh(q)
-            s.add(AnswerOption(question_id=q.id, label_de="Nein", label_en="No", weight=0.0, position=0))
-            s.add(AnswerOption(question_id=q.id, label_de="Ja", label_en="Yes", weight=1.0, position=1))
+            # score_rank 0 = best ("Ja", weight 1.0); rank 1 = worst ("Nein", weight 0.0).
+            s.add(AnswerOption(question_id=q.id, label_de="Ja", label_en="Yes", score_rank=0, weight=1.0, position=1))
+            s.add(AnswerOption(question_id=q.id, label_de="Nein", label_en="No", score_rank=1, weight=0.0, position=0))
             s.commit()
 
         s.add(ResultTier(quiz_id=quiz.id, name_de="Niedrig", name_en="Low", min_score=0, max_score=49, headline_de="lo", headline_en="lo", position=0))

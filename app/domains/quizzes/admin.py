@@ -11,6 +11,7 @@ from typing import Any
 
 from sqlmodel import Session, col, select
 
+from app.domains.quizzes import scoring
 from app.domains.quizzes.models import (
     AnswerOption,
     Dimension,
@@ -165,6 +166,7 @@ def clone_quiz(session: Session, quiz_id: int) -> Quiz | None:
                     question_id=nq.id,
                     label_de=o.label_de,
                     label_en=o.label_en,
+                    score_rank=o.score_rank,
                     weight=o.weight,
                     position=o.position,
                 )
@@ -218,20 +220,46 @@ def get_dimension(session: Session, dim_id: int) -> Dimension | None:
     return session.get(Dimension, dim_id)
 
 
-def add_dimension(
-    session: Session, quiz_id: int, key: str, name_de: str, name_en: str, weight: float
-) -> None:
+def _normalize_dimensions(session: Session, quiz_id: int) -> None:
+    """Rescale a quiz's dimension weights so they sum to exactly 100 (percent
+    shares). Empty/all-zero quizzes fall back to an equal split. Rounding drift
+    is absorbed on the largest dimension so the displayed numbers always add up."""
+    dims = get_dimensions(session, quiz_id)
+    if not dims:
+        return
+    total = sum(d.weight for d in dims)
+    n = len(dims)
+    if total <= 0:
+        shares = [round(100 / n, 1) for _ in dims]
+    else:
+        shares = [round(d.weight / total * 100, 1) for d in dims]
+    drift = round(100 - sum(shares), 1)
+    if drift:  # park the rounding remainder on the currently-largest share
+        biggest = max(range(n), key=lambda i: shares[i])
+        shares[biggest] = round(shares[biggest] + drift, 1)
+    for d, share in zip(dims, shares, strict=True):
+        d.weight = share
+        session.add(d)
+    session.commit()
+
+
+def add_dimension(session: Session, quiz_id: int, key: str, name_de: str, name_en: str) -> None:
+    """Add a Bereich and give it the average share, then renormalise to 100 — so
+    the existing dimensions keep their relative proportions and the sum stays 100."""
+    existing = get_dimensions(session, quiz_id)
+    mean = (sum(d.weight for d in existing) / len(existing)) if existing else 100.0
     session.add(
         Dimension(
             quiz_id=quiz_id,
             key=key,
             name_de=name_de,
             name_en=name_en,
-            weight=weight,
+            weight=mean,
             position=_next_position(session, Dimension, quiz_id=quiz_id),
         )
     )
     session.commit()
+    _normalize_dimensions(session, quiz_id)
 
 
 def update_dimension(
@@ -241,28 +269,51 @@ def update_dimension(
     key: str,
     name_de: str,
     name_en: str,
-    weight: float,
     position: int,
 ) -> None:
+    """Edit a Bereich's name / internal code / order only. The percent share is
+    managed by the slider panel (`set_dimension_weights` / `equalize_dimensions`)."""
     dim = session.get(Dimension, dim_id)
     if dim is None:
         return
     dim.key, dim.name_de, dim.name_en = key, name_de, name_en
-    dim.weight, dim.position = weight, position
+    dim.position = position
     session.add(dim)
     session.commit()
+
+
+def set_dimension_weights(session: Session, quiz_id: int, weights: dict[int, float]) -> None:
+    """Apply raw slider values per dimension id, then renormalise to sum 100."""
+    for dim in get_dimensions(session, quiz_id):
+        if dim.id in weights:
+            dim.weight = max(0.0, weights[dim.id])
+            session.add(dim)
+    session.commit()
+    _normalize_dimensions(session, quiz_id)
+
+
+def equalize_dimensions(session: Session, quiz_id: int) -> None:
+    """Reset every Bereich to an equal share (the 'Alle gleich' default)."""
+    dims = get_dimensions(session, quiz_id)
+    for d in dims:
+        d.weight = 1.0
+        session.add(d)
+    session.commit()
+    _normalize_dimensions(session, quiz_id)
 
 
 def delete_dimension(session: Session, dim_id: int) -> None:
     dim = session.get(Dimension, dim_id)
     if dim is None:
         return
+    quiz_id = dim.quiz_id
     for q in session.exec(select(Question).where(Question.dimension_id == dim_id)).all():
         if q.id is not None:
             _delete_where(session, AnswerOption, question_id=q.id)
     _delete_where(session, Question, dimension_id=dim_id)
     session.delete(dim)
     session.commit()
+    _normalize_dimensions(session, quiz_id)
 
 
 # --- Questions + options ---------------------------------------------------
@@ -333,35 +384,97 @@ def delete_question(session: Session, question_id: int) -> None:
     session.commit()
 
 
-def add_option(
-    session: Session, question_id: int, label_de: str, label_en: str, weight: float
-) -> None:
+def _recompute_option_weights(session: Session, question_id: int) -> None:
+    """Re-pack ranks to 0..n-1 (ordered by current rank, ties by position) and
+    derive each option's weight from its rank. The single place option weights
+    are written, so duplicate/missing-max weights can never exist."""
+    options = list(
+        session.exec(
+            select(AnswerOption)
+            .where(AnswerOption.question_id == question_id)
+            .order_by(col(AnswerOption.score_rank), col(AnswerOption.position))
+        ).all()
+    )
+    n = len(options)
+    for rank, o in enumerate(options):
+        o.score_rank = rank
+        o.weight = scoring.weight_for_rank(rank, n)
+        session.add(o)
+    session.commit()
+
+
+def add_option(session: Session, question_id: int, label_de: str, label_en: str) -> None:
+    """Append a new option as the current worst answer (highest rank); weights
+    for the whole question are then re-derived from the ranking."""
+    existing = session.exec(
+        select(AnswerOption).where(AnswerOption.question_id == question_id)
+    ).all()
+    worst_rank = max((o.score_rank for o in existing), default=-1) + 1
     session.add(
         AnswerOption(
             question_id=question_id,
             label_de=label_de,
             label_en=label_en,
-            weight=weight,
+            score_rank=worst_rank,
             position=_next_position(session, AnswerOption, question_id=question_id),
         )
     )
     session.commit()
+    _recompute_option_weights(session, question_id)
 
 
 def update_option(
-    session: Session, option_id: int, *, label_de: str, label_en: str, weight: float, position: int
+    session: Session, option_id: int, *, label_de: str, label_en: str, position: int
 ) -> None:
+    """Edit an option's labels / display position only. Its scoring value comes
+    from the ranking (see `reorder_options`), never from this form."""
     o = session.get(AnswerOption, option_id)
     if o is None:
         return
-    o.label_de, o.label_en, o.weight, o.position = label_de, label_en, weight, position
+    o.label_de, o.label_en, o.position = label_de, label_en, position
     session.add(o)
     session.commit()
 
 
-def delete_option(session: Session, option_id: int) -> None:
-    _delete_where(session, AnswerOption, id=option_id)
+def reorder_options(session: Session, question_id: int, ordered_ids: list[int]) -> None:
+    """Set the scoring ranking from a best→worst list of option ids (drag & drop),
+    then re-derive weights. Ids not belonging to the question are ignored; any
+    options missing from the list keep their relative order after the listed ones."""
+    options = list(
+        session.exec(
+            select(AnswerOption)
+            .where(AnswerOption.question_id == question_id)
+            .order_by(col(AnswerOption.score_rank), col(AnswerOption.position))
+        ).all()
+    )
+    by_id = {o.id: o for o in options}
+    rank = 0
+    seen: set[int] = set()
+    for oid in ordered_ids:
+        o = by_id.get(oid)
+        if o is None or oid in seen:
+            continue
+        o.score_rank = rank
+        session.add(o)
+        seen.add(oid)
+        rank += 1
+    for o in options:  # any not named in the list trail the ordered ones
+        if o.id not in seen:
+            o.score_rank = rank
+            session.add(o)
+            rank += 1
     session.commit()
+    _recompute_option_weights(session, question_id)
+
+
+def delete_option(session: Session, option_id: int) -> None:
+    o = session.get(AnswerOption, option_id)
+    if o is None:
+        return
+    question_id = o.question_id
+    session.delete(o)
+    session.commit()
+    _recompute_option_weights(session, question_id)
 
 
 # --- Tiers -----------------------------------------------------------------

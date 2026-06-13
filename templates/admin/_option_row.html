@@ -1,17 +1,19 @@
-{# One answer-option row. Rendered inline AND returned as the inline-save
-   fragment (replace target = the wrapping [data-replace]/[data-card]). Field
-   names mirror the update_option route. Layout = a friendly horizontal row. #}
-<div class="opt-row" data-card data-replace>
-  <form method="post" action="/admin/options/{{ o.id }}" data-inline>
+{# One draggable answer-option row. `data-opt-id` feeds the reorder POST; the
+   value shows read-only as a % derived from the rank (no editable weight field).
+   Labels/position save inline (the whole options section re-renders). Field
+   names mirror the update_option route. Needs `o`, `quiz`. #}
+<div class="opt-row" data-opt-id="{{ o.id }}" draggable="true">
+  <span class="opt-drag" aria-hidden="true" title="Ziehen zum Sortieren">⠿</span>
+  <form method="post" action="/admin/options/{{ o.id }}" data-inline class="opt-row-form">
     <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
     <input type="hidden" name="position" value="{{ o.position }}">
     <div class="opt-grid">
       <div class="ar-field"><label>Antwort (Deutsch)</label><input name="label_de" value="{{ o.label_de }}"></div>
       <div class="ar-field"><label>Antwort (Englisch)</label><input name="label_en" value="{{ o.label_en }}"></div>
-      <div class="ar-field opt-weight"><label>Gewicht</label><input name="weight" inputmode="decimal" value="{{ o.weight }}"></div>
+      <span class="opt-share" title="Automatisch aus der Rangfolge">{{ (o.weight * 100) | round | int }}%</span>
       <div class="opt-actions">
         <button class="ar-btn ar-btn-primary">OK</button>
-        <button formaction="/admin/options/{{ o.id }}/delete" data-mode="remove" class="ar-btn ar-btn-ghost" aria-label="Antwort löschen">✕</button>
+        <button formaction="/admin/options/{{ o.id }}/delete" class="ar-btn ar-btn-ghost" aria-label="Antwort löschen">✕</button>
       </div>
     </div>
   </form>

@@ -36,19 +36,8 @@
     {% with q = focused.q %}{% include "admin/_question_form.html" %}{% endwith %}
 
     <h3 class="qdetail-sub">Antworten</h3>
-    <p class="admin-hint" style="margin: 0 0 var(--ar-space-3);">Gewicht: 0 = trifft nicht zu · 1 = voll erfüllt. Wie stark eine Antwort zählt.</p>
-    <div data-options>
-      {% for o in focused.options %}{% include "admin/_option_row.html" %}{% endfor %}
-      <form class="opt-add" method="post" action="/admin/questions/{{ focused.q.id }}/options" data-inline data-mode="append">
-        <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
-        <div class="opt-grid">
-          <div class="ar-field"><label>Neue Antwort (Deutsch)</label><input name="label_de"></div>
-          <div class="ar-field"><label>(Englisch)</label><input name="label_en"></div>
-          <div class="ar-field opt-weight"><label>Gewicht</label><input name="weight" inputmode="decimal" value="0.0"></div>
-          <div class="opt-actions"><button class="ar-btn ar-btn-ghost">+ Antwort</button></div>
-        </div>
-      </form>
-    </div>
+    <p class="admin-hint" style="margin: 0 0 var(--ar-space-3);">Zieh die Antworten in die richtige Reihenfolge — von der besten (oben, 100&nbsp;%) zur schlechtesten (unten, 0&nbsp;%). Die Prozente ergeben sich automatisch aus der Rangfolge.</p>
+    {% with question = focused.q, options = focused.options %}{% include "admin/_options_section.html" %}{% endwith %}
 
     <form method="post" action="/admin/questions/{{ focused.q.id }}/delete"
           style="margin-top: var(--ar-space-10);"

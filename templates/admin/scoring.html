@@ -5,18 +5,8 @@
 
 <div class="panel">
   <h3 class="panel-title">Bereiche</h3>
-  <p class="admin-hint" style="margin-bottom: var(--ar-space-4);">Themen, in die deine Fragen sortiert sind. Das Gewicht bestimmt, wie stark ein Bereich in den Gesamt-Score zählt (höher = wichtiger).</p>
-  <div data-dimensions>
-    {% for d in dimensions %}{% include "admin/_dimension_row.html" %}{% endfor %}
-    <form class="opt-add" method="post" action="/admin/quizzes/{{ quiz.id }}/dimensions" data-inline data-mode="append">
-      <div class="opt-grid">
-        <div class="ar-field"><label>Neuer Bereich (Deutsch)</label><input name="name_de" placeholder="z. B. Strategie &amp; Vision"></div>
-        <div class="ar-field"><label>(Englisch)</label><input name="name_en"></div>
-        <div class="ar-field opt-weight"><label>Gewicht</label><input name="weight" inputmode="decimal" value="1.0"></div>
-        <div class="opt-actions"><button class="ar-btn ar-btn-ghost">+ Bereich</button></div>
-      </div>
-    </form>
-  </div>
+  <p class="admin-hint" style="margin-bottom: var(--ar-space-4);">Themen, in die deine Fragen sortiert sind. Den Anteil jedes Bereichs am Gesamt-Score stellst du unten mit den Reglern ein — die Summe bleibt immer 100&nbsp;%.</p>
+  {% include "admin/_dimensions_section.html" %}
 </div>
 
 <div class="panel">

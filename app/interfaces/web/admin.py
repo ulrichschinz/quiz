@@ -104,6 +104,53 @@ def _saved(request: Request, quiz_id: int) -> Response:
     return _redirect_back(request, quiz_id)
 
 
+def _dimensions_response(request: Request, session: Session, quiz_id: int) -> Response:
+    """Re-render the whole Bereiche + Themen-Anteile section. Every dimension
+    mutation rebalances the percent shares, so a single-row swap would desync the
+    sliders — the section is the inline-replace unit."""
+    if _is_inline(request):
+        return _fragment(
+            request,
+            session,
+            quiz_id,
+            "admin/_dimensions_section.html",
+            {"dimensions": quizzes_admin.get_dimensions(session, quiz_id)},
+        )
+    return _redirect_back(request, quiz_id)
+
+
+def _options_response(
+    request: Request, session: Session, quiz_id: int, question_id: int
+) -> Response:
+    """Re-render the whole answer-options section. Adding / deleting / reordering
+    re-derives every option's weight from the ranking, so the section (not a row)
+    is the inline-replace unit."""
+    if _is_inline(request):
+        question = quizzes_admin.get_question(session, question_id)
+        return _fragment(
+            request,
+            session,
+            quiz_id,
+            "admin/_options_section.html",
+            {"question": question, "options": quizzes_admin.get_options(session, question_id)},
+        )
+    return _redirect_back(request, quiz_id)
+
+
+def _parse_weights(form: dict[str, str]) -> dict[int, float]:
+    """Pull `weight_<dim_id>` slider fields out of a posted form into {id: value}.
+    Unparseable values are skipped (the server renormalises whatever it gets)."""
+    out: dict[int, float] = {}
+    for key, raw in form.items():
+        if not key.startswith("weight_"):
+            continue
+        try:
+            out[int(key[len("weight_") :])] = _parse_weight(raw)
+        except ValueError:
+            continue
+    return out
+
+
 # --- Quiz list + create ----------------------------------------------------
 @router.get("", response_class=HTMLResponse)
 def index(request: Request, session: Session = Depends(get_session)):
@@ -396,21 +443,14 @@ def add_dimension(
     request: Request,
     name_de: str = Form(""),
     name_en: str = Form(""),
-    weight: str = Form("1.0"),
     key: str = Form(""),
     session: Session = Depends(get_session),
 ):
-    try:
-        w = _parse_weight(weight)
-    except ValueError:
-        return _invalid(request, quiz_id, "Gewicht muss eine Zahl sein (z. B. 0,5).")
-    # The user no longer types a "Key" — derive a stable internal code from the name.
+    # The user no longer types a "Key" — derive a stable internal code from the
+    # name. The new Bereich gets an equal share automatically (sum stays 100).
     code = key.strip() or _slugify(name_de) or _slugify(name_en) or "bereich"
-    quizzes_admin.add_dimension(session, quiz_id, code, name_de, name_en, w)
-    if _is_inline(request):
-        d = quizzes_admin.get_dimensions(session, quiz_id)[-1]
-        return _fragment(request, session, quiz_id, "admin/_dimension_row.html", {"d": d})
-    return _redirect_back(request, quiz_id)
+    quizzes_admin.add_dimension(session, quiz_id, code, name_de, name_en)
+    return _dimensions_response(request, session, quiz_id)
 
 
 @router.post("/dimensions/{dim_id}")
@@ -421,23 +461,32 @@ def update_dimension(
     key: str = Form(...),
     name_de: str = Form(""),
     name_en: str = Form(""),
-    weight: str = Form("1.0"),
     position: int = Form(0),
     session: Session = Depends(get_session),
 ):
-    try:
-        w = _parse_weight(weight)
-    except ValueError:
-        return _invalid(request, quiz_id, "Gewicht muss eine Zahl sein (z. B. 0,5).")
     quizzes_admin.update_dimension(
-        session, dim_id, key=key, name_de=name_de, name_en=name_en, weight=w, position=position
+        session, dim_id, key=key, name_de=name_de, name_en=name_en, position=position
     )
-    if _is_inline(request):
-        d = quizzes_admin.get_dimension(session, dim_id)
-        if d is None:
-            return Response(status_code=404)
-        return _fragment(request, session, quiz_id, "admin/_dimension_row.html", {"d": d})
-    return _redirect_back(request, quiz_id)
+    return _dimensions_response(request, session, quiz_id)
+
+
+@router.post("/quizzes/{quiz_id}/dimensions/weights")
+async def update_dimension_weights(
+    quiz_id: int, request: Request, session: Session = Depends(get_session)
+):
+    """Save all Themen-Anteil sliders at once; the service renormalises to 100."""
+    form = await request.form()
+    quizzes_admin.set_dimension_weights(
+        session, quiz_id, _parse_weights({k: str(v) for k, v in form.items()})
+    )
+    return _dimensions_response(request, session, quiz_id)
+
+
+@router.post("/quizzes/{quiz_id}/dimensions/equalize")
+def equalize_dimensions(quiz_id: int, request: Request, session: Session = Depends(get_session)):
+    """The 'Alle gleich verteilen' button — reset every Bereich to an equal share."""
+    quizzes_admin.equalize_dimensions(session, quiz_id)
+    return _dimensions_response(request, session, quiz_id)
 
 
 @router.post("/dimensions/{dim_id}/delete")
@@ -448,7 +497,7 @@ def delete_dimension(
     session: Session = Depends(get_session),
 ):
     quizzes_admin.delete_dimension(session, dim_id)
-    return _saved(request, quiz_id)
+    return _dimensions_response(request, session, quiz_id)
 
 
 # --- Questions + options ---------------------------------------------------
@@ -530,20 +579,12 @@ def add_option(
     quiz_id: int = Form(...),
     label_de: str = Form(""),
     label_en: str = Form(""),
-    weight: str = Form("0.0"),
     session: Session = Depends(get_session),
 ):
-    try:
-        w = _parse_weight(weight)
-    except ValueError:
-        return _invalid(
-            request, quiz_id, "Gewicht muss eine Zahl zwischen 0 und 1 sein (z. B. 0,5)."
-        )
-    quizzes_admin.add_option(session, question_id, label_de, label_en, w)
-    if _is_inline(request):
-        o = quizzes_admin.get_options(session, question_id)[-1]
-        return _fragment(request, session, quiz_id, "admin/_option_row.html", {"o": o})
-    return _redirect_back(request, quiz_id)
+    # No weight field any more — a new answer joins as the worst-ranked option
+    # and the whole question's weights are re-derived from the ranking.
+    quizzes_admin.add_option(session, question_id, label_de, label_en)
+    return _options_response(request, session, quiz_id, question_id)
 
 
 @router.post("/options/{option_id}")
@@ -553,25 +594,30 @@ def update_option(
     quiz_id: int = Form(...),
     label_de: str = Form(""),
     label_en: str = Form(""),
-    weight: str = Form("0.0"),
     position: int = Form(0),
     session: Session = Depends(get_session),
 ):
-    try:
-        w = _parse_weight(weight)
-    except ValueError:
-        return _invalid(
-            request, quiz_id, "Gewicht muss eine Zahl zwischen 0 und 1 sein (z. B. 0,5)."
-        )
+    o = quizzes_admin.get_option(session, option_id)
+    if o is None:
+        return _invalid(request, quiz_id, "Antwort nicht gefunden.")
+    question_id = o.question_id
     quizzes_admin.update_option(
-        session, option_id, label_de=label_de, label_en=label_en, weight=w, position=position
+        session, option_id, label_de=label_de, label_en=label_en, position=position
     )
-    if _is_inline(request):
-        o = quizzes_admin.get_option(session, option_id)
-        if o is None:
-            return Response(status_code=404)
-        return _fragment(request, session, quiz_id, "admin/_option_row.html", {"o": o})
-    return _redirect_back(request, quiz_id)
+    return _options_response(request, session, quiz_id, question_id)
+
+
+@router.post("/questions/{question_id}/options/reorder")
+async def reorder_options(
+    question_id: int, request: Request, session: Session = Depends(get_session)
+):
+    """Drag & drop ranking: a best→worst list of option ids (`order=<id>` repeated)
+    sets the ranks and re-derives weights."""
+    form = await request.form()
+    quiz_id = _parse_int(str(form.get("quiz_id", "0")))
+    ordered_ids = [int(v) for v in form.getlist("order") if str(v).isdigit()]
+    quizzes_admin.reorder_options(session, question_id, ordered_ids)
+    return _options_response(request, session, quiz_id, question_id)
 
 
 @router.post("/options/{option_id}/delete")
@@ -581,8 +627,12 @@ def delete_option(
     quiz_id: int = Form(...),
     session: Session = Depends(get_session),
 ):
+    o = quizzes_admin.get_option(session, option_id)
+    question_id = o.question_id if o is not None else None
     quizzes_admin.delete_option(session, option_id)
-    return _saved(request, quiz_id)
+    if question_id is None:
+        return _saved(request, quiz_id)
+    return _options_response(request, session, quiz_id, question_id)
 
 
 # --- Tiers -----------------------------------------------------------------
