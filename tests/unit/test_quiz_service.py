@@ -30,6 +30,33 @@ def test_unpublished_quiz_is_not_served(engine, seeded) -> None:
         assert service.get_published_quiz(s, seeded) is None
 
 
+def test_result_email_body_follows_language(engine, seeded) -> None:
+    """An English quiz must resolve the English body, German the German one."""
+    with Session(engine) as s:
+        quiz = service.get_published_quiz(s, seeded)
+        assert quiz is not None
+        de = service.get_result_email_config(s, quiz, "de")
+        en = service.get_result_email_config(s, quiz, "en")
+
+    assert de.body_template.startswith("Hallo")
+    assert en.body_template.startswith("Hi")
+
+
+def test_new_quiz_ships_with_default_email_copy(engine) -> None:
+    """A freshly created quiz is pre-filled with good German + English copy."""
+    from app.domains.quizzes import admin
+
+    with Session(engine) as s:
+        quiz = admin.create_quiz(s, slug="fresh", title_de="Frisch", title_en="Fresh")
+        assert quiz.id is not None
+        cfg = admin.get_result_config(s, quiz.id)
+
+    assert cfg is not None
+    assert "Agentic Reach" in cfg.email_subject_de
+    assert cfg.email_body_de and cfg.email_body_en
+    assert "{score}" in cfg.email_body_en
+
+
 def test_landing_view_falls_back_to_title(engine) -> None:
     from app.domains.quizzes.models import Quiz
 

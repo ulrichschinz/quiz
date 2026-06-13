@@ -20,6 +20,7 @@ from datetime import datetime
 from sqlmodel import Field
 
 from app.core.db import SQLModel
+from app.domains.quizzes import defaults
 from app.shared.clock import utcnow
 
 
@@ -100,15 +101,15 @@ class QuizLandingConfig(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     quiz_id: int = Field(foreign_key="quiz.id", unique=True, index=True)
-    hero_eyebrow_de: str = ""
-    hero_eyebrow_en: str = ""
-    hero_headline_de: str = ""
-    hero_headline_en: str = ""
-    hero_subline_de: str = ""
-    hero_subline_en: str = ""
-    cta_label_de: str = ""
-    cta_label_en: str = ""
-    benefits_json: str = "[]"  # JSON list of {de, en} bullet points
+    hero_eyebrow_de: str = defaults.HERO_EYEBROW_DE
+    hero_eyebrow_en: str = defaults.HERO_EYEBROW_EN
+    hero_headline_de: str = defaults.HERO_HEADLINE_DE
+    hero_headline_en: str = defaults.HERO_HEADLINE_EN
+    hero_subline_de: str = defaults.HERO_SUBLINE_DE
+    hero_subline_en: str = defaults.HERO_SUBLINE_EN
+    cta_label_de: str = defaults.CTA_LABEL_DE
+    cta_label_en: str = defaults.CTA_LABEL_EN
+    benefits_json: str = defaults.BENEFITS_JSON  # JSON list of {de, en} bullet points
 
 
 class QuizResultConfig(SQLModel, table=True):
@@ -116,10 +117,13 @@ class QuizResultConfig(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     quiz_id: int = Field(foreign_key="quiz.id", unique=True, index=True)
-    intro_de: str = ""
-    intro_en: str = ""
+    intro_de: str = defaults.INTRO_DE
+    intro_en: str = defaults.INTRO_EN
     show_dimension_breakdown: bool = Field(default=True)
-    email_subject_de: str = ""
-    email_subject_en: str = ""
-    email_body_template: str = ""  # supports {name} {score} {tier} {url}
-    notify_emails: str = ""  # comma-separated team recipients
+    email_subject_de: str = defaults.EMAIL_SUBJECT_DE
+    email_subject_en: str = defaults.EMAIL_SUBJECT_EN
+    # Body is per-language (de/en) so an English quiz sends an English e-mail.
+    # Both support {name} {score} {tier} {url}; subjects support {score}.
+    email_body_de: str = defaults.EMAIL_BODY_DE
+    email_body_en: str = defaults.EMAIL_BODY_EN
+    notify_emails: str = defaults.NOTIFY_EMAILS  # comma-separated team recipients

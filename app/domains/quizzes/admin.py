@@ -620,7 +620,8 @@ def update_result_config(
     show_dimension_breakdown: bool,
     email_subject_de: str,
     email_subject_en: str,
-    email_body_template: str,
+    email_body_de: str,
+    email_body_en: str,
     notify_emails: str,
 ) -> None:
     cfg = get_result_config(session, quiz_id)
@@ -629,6 +630,7 @@ def update_result_config(
     cfg.intro_de, cfg.intro_en = intro_de, intro_en
     cfg.show_dimension_breakdown = show_dimension_breakdown
     cfg.email_subject_de, cfg.email_subject_en = email_subject_de, email_subject_en
-    cfg.email_body_template, cfg.notify_emails = email_body_template, notify_emails
+    cfg.email_body_de, cfg.email_body_en = email_body_de, email_body_en
+    cfg.notify_emails = notify_emails
     session.add(cfg)
     session.commit()

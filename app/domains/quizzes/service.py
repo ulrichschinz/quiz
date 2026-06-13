@@ -224,6 +224,6 @@ def get_result_email_config(session: Session, quiz: Quiz, lang: str) -> EmailCon
         return EmailConfig(subject_template="", body_template="", notify_emails="")
     return EmailConfig(
         subject_template=pick(cfg.email_subject_de, cfg.email_subject_en, lang),
-        body_template=cfg.email_body_template,
+        body_template=pick(cfg.email_body_de, cfg.email_body_en, lang),
         notify_emails=cfg.notify_emails,
     )
