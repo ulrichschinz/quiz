@@ -43,7 +43,13 @@ def landing(slug: str, request: Request, session: Session = Depends(get_session)
     if quiz is None:
         raise HTTPException(status_code=404, detail="quiz not found")
     view = quizzes_service.get_landing_view(session, quiz)
-    return templates.TemplateResponse(request, "public/landing.html", {"landing": view})
+    # `lang` seeds the server-rendered fallback; the client toggle treats
+    # ?lang=de|en as the source of truth (see base.html).
+    return templates.TemplateResponse(
+        request,
+        "public/landing.html",
+        {"landing": view, "lang": quiz.default_lang},
+    )
 
 
 @router.get("/q/{slug}/take", response_class=HTMLResponse)
