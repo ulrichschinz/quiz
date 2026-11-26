@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import secrets
 import threading
 import time
@@ -41,6 +42,9 @@ from fastapi import Request
 
 from app.core.config import get_settings
 from app.core.errors import NeedsLoginException
+from app.core.logging import get_logger
+
+log = get_logger("core.security")
 
 SESSION_ADMIN_KEY = "admin"
 SESSION_ID_KEY = "admin_sid"
@@ -198,15 +202,69 @@ def rate_limit(throttle: LoginThrottle, key: str, limits: list[tuple[int, int]])
     return 0
 
 
+# An IPv6 client normally controls a whole /64, so per-address buckets would be
+# trivially bypassed by rotating addresses: IPv6 keys are the /64 prefix.
+IPV6_THROTTLE_PREFIX = 64
+_untrusted_proxy_reported = False
+
+
+def normalize_client_ip(host: str) -> str:
+    """Throttle bucket for a peer address.
+
+    IPv4 stays as is; an IPv4-mapped IPv6 address (::ffff:a.b.c.d) maps to its
+    IPv4 address; any other IPv6 address becomes its /64 network. Anything that
+    does not parse (e.g. a test client's host name) is used verbatim.
+    """
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return host
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.ipv4_mapped is not None:
+            return str(ip.ipv4_mapped)
+        return str(ipaddress.ip_network(f"{ip}/{IPV6_THROTTLE_PREFIX}", strict=False))
+    return str(ip)
+
+
+def _warn_if_proxy_untrusted(request: Request, host: str) -> None:
+    """Log once when a private/loopback peer sends X-Forwarded-For that uvicorn
+    did not apply: the reverse proxy is not in FORWARDED_ALLOW_IPS, so every
+    visitor shares the proxy's throttle bucket (site-wide 429s)."""
+    global _untrusted_proxy_reported
+    if _untrusted_proxy_reported:
+        return
+    xff = request.headers.get("x-forwarded-for")
+    if not xff:
+        return
+    try:
+        peer = ipaddress.ip_address(host)
+    except ValueError:
+        return
+    forwarded = {part.strip() for part in xff.split(",")}
+    if (peer.is_private or peer.is_loopback) and host not in forwarded:
+        _untrusted_proxy_reported = True
+        log.warning(
+            "X-Forwarded-For from untrusted peer %s ignored: all clients behind this "
+            "proxy share one rate-limit bucket. Add the proxy's network (CIDR) to "
+            "FORWARDED_ALLOW_IPS.",
+            host,
+        )
+
+
 def client_key(request: Request) -> str:
-    """Throttle key for a request: the peer IP as uvicorn reports it.
+    """Throttle key for a request: the (normalized) peer IP as uvicorn reports it.
 
     X-Forwarded-For is deliberately NOT parsed here. uvicorn's proxy-headers
     handling rewrites `request.client` from X-Forwarded-For only for peers
-    listed in FORWARDED_ALLOW_IPS (default 127.0.0.1), so the value is only as
-    trustworthy as that setting — a client cannot spoof it from outside.
+    listed in FORWARDED_ALLOW_IPS (image default: loopback + private ranges,
+    see Dockerfile), so the value is only as trustworthy as that setting — a
+    client cannot spoof it from outside. IPv6 peers are bucketed per /64.
     """
-    return request.client.host if request.client else "unknown"
+    if not request.client:
+        return "unknown"
+    host = request.client.host
+    _warn_if_proxy_untrusted(request, host)
+    return normalize_client_ip(host)
 
 
 def start_admin_session(request: Request) -> None:

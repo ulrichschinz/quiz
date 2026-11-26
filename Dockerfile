@@ -14,6 +14,18 @@ COPY . .
 
 EXPOSE 8000
 
+# SEC-003/007: the per-IP submit and login throttles key on the client address
+# uvicorn reports. The reverse proxy (Caddy in the repo compose, Traefik in
+# production) runs in another container, so uvicorn must trust its
+# X-Forwarded-For — otherwise every visitor shares the proxy's bucket and 10
+# submits/min would throttle the whole site. uvicorn reads this variable itself
+# (CIDRs allowed) and takes the right-most untrusted X-Forwarded-For entry, i.e.
+# the address the proxy saw. Default: loopback + the private ranges Docker
+# networks use; the app port is only reachable via the proxy network (compose
+# binds it to 127.0.0.1). Narrow it via .env to the proxy network's subnet, e.g.
+# `docker network inspect traefik-public -f '{{(index .IPAM.Config 0).Subnet}}'`.
+ENV FORWARDED_ALLOW_IPS="127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+
 # SEC-018 (operator follow-up, deliberately NOT done here): the container still
 # runs as root. Production bind-mounts a root-owned ./quiz.db into /app/quiz.db;
 # switching to an unprivileged user without first fixing the host file's owner

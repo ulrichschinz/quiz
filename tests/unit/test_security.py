@@ -19,6 +19,7 @@ from app.core.config import Settings
 from app.core.security import (
     AdminSessionRegistry,
     LoginThrottle,
+    normalize_client_ip,
     password_fingerprint,
     verify_admin_password,
 )
@@ -91,12 +92,19 @@ def test_app_refuses_to_start_without_secret_key() -> None:
 
 
 @pytest.mark.parametrize("pw", ["secret", "change-me", "elevenchars", "change-me-please-123"])
-def test_short_or_placeholder_admin_password_is_rejected(monkeypatch, pw) -> None:
+def test_short_or_placeholder_admin_password_disables_admin_only(monkeypatch, caplog, pw) -> None:
+    """Review follow-up: a weak ADMIN_PASSWORD must not crash-loop the whole app
+    (public funnel included). It is treated as unset — admin login disabled — and
+    reported in the log without the value itself."""
+    import app.core.config as config_mod
+
+    monkeypatch.setattr(config_mod, "_weak_admin_password_reported", False)
     monkeypatch.setenv("ADMIN_PASSWORD", pw)
-    with pytest.raises(ValidationError) as exc:
-        Settings()
-    assert "ADMIN_PASSWORD" in str(exc.value)
-    assert pw not in str(exc.value)
+    with caplog.at_level("ERROR", logger="quiz.core.config"):
+        settings = Settings()  # must not raise
+    assert settings.admin_password is None
+    assert verify_admin_password(pw, settings.admin_password) is False
+    assert "ADMIN_PASSWORD" in caplog.text and pw not in caplog.text
 
 
 @pytest.mark.parametrize("pw", ["", "twelve-chars"])
@@ -177,3 +185,21 @@ def test_secure_defaults(monkeypatch) -> None:
     assert s.enable_api_docs is False
     assert s.login_max_failures == 10
     assert s.login_window_seconds == 15 * 60
+
+
+# --- SEC-003/007 review follow-up: throttle key normalisation -----------------
+
+
+@pytest.mark.parametrize(
+    "host,expected",
+    [
+        ("203.0.113.7", "203.0.113.7"),
+        ("::ffff:203.0.113.7", "203.0.113.7"),  # IPv4-mapped => same bucket as IPv4
+        ("2001:db8::1", "2001:db8::/64"),
+        ("2001:db8:0:0:ffff:ffff:ffff:ffff", "2001:db8::/64"),
+        ("2001:db8:0:1::1", "2001:db8:0:1::/64"),
+        ("testclient", "testclient"),  # unparsable => verbatim
+    ],
+)
+def test_client_ip_normalisation(host, expected) -> None:
+    assert normalize_client_ip(host) == expected

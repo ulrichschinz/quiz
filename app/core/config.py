@@ -9,17 +9,29 @@ re-instantiation cost is irrelevant.
 `.env` loading is NOT configured here: `app/main.py` calls `load_dotenv()`
 before any `Settings()` is constructed.
 
-Security-relevant fields fail closed (SEC-001 / SEC-007): a missing, short or
-placeholder `SECRET_KEY` and a too-short `ADMIN_PASSWORD` raise a
-`ValidationError` at construction — `app/main.py` constructs Settings at import
-time, so the process refuses to start. `hide_input_in_errors` keeps the secret
-values themselves out of the error text / logs.
+Security-relevant fields fail closed (SEC-001 / SEC-007):
+
+* a missing, short or placeholder `SECRET_KEY` raises a `ValidationError` at
+  construction — `app/main.py` constructs Settings at import time, so the
+  process refuses to start (a forgeable session cookie is never acceptable);
+* a too-short / placeholder `ADMIN_PASSWORD` fails closed for the *admin area
+  only*: it is logged as an error and treated as unset, so the admin login is
+  disabled while the public quiz, landing and result pages keep serving. A weak
+  admin password must not take the lead funnel offline.
+
+`hide_input_in_errors` keeps the secret values out of error text / logs.
 """
 
 from __future__ import annotations
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.logging import get_logger
+
+log = get_logger("core.config")
+# get_settings() runs per request: report a rejected ADMIN_PASSWORD only once.
+_weak_admin_password_reported = False
 
 SECRET_KEY_MIN_LENGTH = 32
 ADMIN_PASSWORD_MIN_LENGTH = 12
@@ -53,7 +65,8 @@ class Settings(BaseSettings):
     hsts_max_age: int = Field(default=365 * 24 * 60 * 60, ge=0)
 
     # --- Admin (single-password admin area) ---
-    # Unset/empty => admin login disabled. If set: >= ADMIN_PASSWORD_MIN_LENGTH chars.
+    # Unset/empty => admin login disabled. If set: >= ADMIN_PASSWORD_MIN_LENGTH chars,
+    # otherwise it is treated as unset (login disabled, error logged).
     admin_password: str | None = None
     # Session cookie: Secure flag (disable only for plain-http local dev/tests)
     # and lifetime in seconds (also enforced server-side per login).
@@ -110,13 +123,18 @@ class Settings(BaseSettings):
     @field_validator("admin_password")
     @classmethod
     def _admin_password_strong(cls, v: str | None) -> str | None:
+        global _weak_admin_password_reported
         if not v:
             return v  # unset/empty => admin login disabled (fail-closed)
         if len(v) < ADMIN_PASSWORD_MIN_LENGTH or v.lower().startswith("change-me"):
-            raise ValueError(
-                f"ADMIN_PASSWORD must be at least {ADMIN_PASSWORD_MIN_LENGTH} characters "
-                "and not a placeholder (leave it empty to disable the admin login)."
-            )
+            if not _weak_admin_password_reported:
+                _weak_admin_password_reported = True
+                log.error(
+                    "ADMIN_PASSWORD rejected: it must be at least %d characters and not a "
+                    "placeholder. The admin login is DISABLED until it is fixed.",
+                    ADMIN_PASSWORD_MIN_LENGTH,
+                )
+            return None  # fail closed for the admin area only
         return v
 
 

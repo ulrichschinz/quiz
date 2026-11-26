@@ -24,6 +24,8 @@
   "use strict";
 
   var HIDE_SAVED_MS = 2500;
+  var SESSION_EXPIRED_MSG =
+    "Sitzung abgelaufen – bitte in neuem Tab anmelden, dann erneut speichern.";
 
   function statusEl(form) {
     var el = form.querySelector(":scope > .ws-status");
@@ -81,7 +83,14 @@
       credentials: "same-origin",
     })
       .then(function (res) {
-        // A followed redirect (e.g. session expired -> /login) is not a fragment.
+        // Session expired: the server answers 401 (handled below as an error);
+        // should a redirect to /login still be followed, never reload — that
+        // would discard the unsaved input. Keep the form dirty and say why.
+        if (res.redirected && /\/login(?:[?#]|$)/.test(res.url)) {
+          setStatus(form, "error", SESSION_EXPIRED_MSG);
+          throw new Error("session expired");
+        }
+        // Any other followed redirect is not a fragment.
         if (res.redirected) {
           window.location.reload();
           return null;

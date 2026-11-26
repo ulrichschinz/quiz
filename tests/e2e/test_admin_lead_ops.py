@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import csv
 import io
+from contextlib import contextmanager
 
 import pytest
 from sqlmodel import Session, select
@@ -144,6 +145,33 @@ def test_parallel_retry_is_a_noop(client, seeded, engine, smtp, monkeypatch):
         r = client.post(
             f"/admin/submissions/{sub.id}/retry", data={"quiz_id": sub.quiz_id}, follow_redirects=False
         )
+    assert r.status_code == 303 and smtp.sent == []
+
+
+@pytest.mark.e2e
+def test_retry_rechecks_state_after_acquiring_the_lock(client, seeded, engine, smtp, monkeypatch):
+    """REV-003 follow-up: retry A delivers and releases the lock just before
+    retry B (which read the row earlier) gets it — B must not send again."""
+    smtp.down = True
+    sub = _sub(engine, _submit(client))
+    smtp.down = False
+    _login(client, monkeypatch)
+    real_exclusive = pipeline.exclusive
+
+    @contextmanager
+    def exclusive_after_other_retry(submission_id):
+        with Session(engine) as s:  # retry A finished in between
+            row = s.get(Submission, submission_id)
+            row.email_sent, row.email_error = True, None
+            s.add(row)
+            s.commit()
+        with real_exclusive(submission_id) as acquired:
+            yield acquired
+
+    monkeypatch.setattr(pipeline, "exclusive", exclusive_after_other_retry)
+    r = client.post(
+        f"/admin/submissions/{sub.id}/retry", data={"quiz_id": sub.quiz_id}, follow_redirects=False
+    )
     assert r.status_code == 303 and smtp.sent == []
 
 

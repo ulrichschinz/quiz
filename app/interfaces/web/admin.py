@@ -858,6 +858,14 @@ def retry_pipeline(
         return redirect  # everything already delivered — idempotent
     with pipeline.exclusive(submission_id) as acquired:
         if acquired:
+            # REV-003: the pre-lock check above may be stale — a retry that held
+            # the lock just before us may have delivered meanwhile. Re-read the
+            # row under the lock and decide again.
+            session.refresh(submission)
+            need_crm = not submission.crm_pushed
+            need_email = not submission.email_sent
+            if not (need_crm or need_email):
+                return redirect
             lead_mail.dispatch_lead(
                 session,
                 submission,

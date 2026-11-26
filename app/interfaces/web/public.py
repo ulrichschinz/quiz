@@ -5,7 +5,8 @@
 - `GET /q/{slug}`         → data-driven landing (QuizLandingConfig).
 - `GET /q/{slug}/take`    → the quiz player shell (player.js fetches the JSON).
 
-The results page (`GET /r/{public_id}`) is added in Phase 4.
+- `GET /r/{public_id}`    → results page of a stored submission; a neutral 404
+                            page once its quiz is no longer published (REV-002).
 """
 
 from __future__ import annotations
@@ -72,8 +73,17 @@ def results(public_id: str, request: Request, session: Session = Depends(get_ses
     view = submissions_service.get_public_submission(session, public_id)
     if view is None:
         raise HTTPException(status_code=404, detail="result not found")
+    # REV-002: a result link is only as alive as its quiz. Once the quiz is
+    # unpublished (or deleted) the link shows a neutral page instead of the
+    # quiz's current result texts / tiers. Resolved by the submission's own
+    # quiz_id, never by the copied slug.
+    quiz = quizzes_service.get_published_quiz_by_id(session, view.quiz_id)
+    if quiz is None:
+        return templates.TemplateResponse(
+            request, "public/result_unavailable.html", {"lang": view.lang}, status_code=404
+        )
     result = quizzes_service.get_result_view(
-        session, view.quiz_slug, view.tier_id, view.dimension_scores, view.lang
+        session, quiz.slug, view.tier_id, view.dimension_scores, view.lang
     )
     return templates.TemplateResponse(
         request,

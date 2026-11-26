@@ -154,6 +154,51 @@ def test_throttle_is_per_client_ip(client, monkeypatch) -> None:
 
 
 @pytest.mark.e2e
+def test_ipv6_clients_in_one_64_share_a_throttle_bucket(client, monkeypatch) -> None:
+    """Review follow-up: rotating addresses inside one /64 must not reset the limit."""
+    from app.main import app
+
+    monkeypatch.setenv("ADMIN_PASSWORD", ADMIN_PW)
+    for i in range(10):
+        with TestClient(app, client=(f"2001:db8::{i:x}", 40000)) as c:
+            assert c.post("/login", data={"password": "wrong"}).status_code == 401
+    with TestClient(app, client=("2001:db8::ffff", 40000)) as c:
+        assert c.post("/login", data={"password": "wrong"}).status_code == 429
+    with TestClient(app, client=("2001:db8:0:1::1", 40000)) as c:  # another /64
+        assert c.post("/login", data={"password": "wrong"}).status_code == 401
+
+
+@pytest.mark.e2e
+def test_weak_admin_password_keeps_public_site_up(client, seeded, monkeypatch) -> None:
+    """Review follow-up: a too-short ADMIN_PASSWORD disables the admin login only."""
+    monkeypatch.setenv("ADMIN_PASSWORD", "short")
+    assert client.get("/q/test-quiz").status_code == 200
+    assert client.get("/api/quiz/test-quiz").status_code == 200
+    r = client.post("/login", data={"password": "short"}, follow_redirects=False)
+    assert r.status_code == 401
+    assert client.get("/admin", follow_redirects=False).status_code == 303
+
+
+@pytest.mark.e2e
+def test_inline_save_without_session_is_401_not_redirect(client, seeded) -> None:
+    """Review follow-up (SEC-006 x autosave): an inline save with a dead session
+    gets a 401 + message, so the editor keeps the input instead of reloading."""
+    from app.main import INLINE_SESSION_EXPIRED
+
+    r = client.post(
+        "/admin/quizzes/1/meta",
+        data={"title_de": "x"},
+        headers={"X-Inline": "1"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 401
+    assert r.text == INLINE_SESSION_EXPIRED
+    # A normal (non-inline) request still redirects to the login page.
+    r = client.post("/admin/quizzes/1/meta", data={"title_de": "x"}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/login"
+
+
+@pytest.mark.e2e
 def test_successful_login_resets_failure_count(client, monkeypatch) -> None:
     monkeypatch.setenv("ADMIN_PASSWORD", ADMIN_PW)
     for _ in range(9):

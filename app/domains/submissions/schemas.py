@@ -53,6 +53,7 @@ class SubmissionView(BaseModel):
     """What the results page needs from a stored submission."""
 
     public_id: str
+    quiz_id: int
     quiz_slug: str
     lang: str
     overall_score: int

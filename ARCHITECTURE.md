@@ -12,7 +12,7 @@ that changes the structure.
 | Domains           | 2    |
 | Route-Module      | 4    |
 | HTTP-Endpoints    | 44   |
-| HTML-Templates    | 23   |
+| HTML-Templates    | 24   |
 | SQLModel-Tabellen | 8    |
 
 - **Domains** — sub-packages under `app/domains/` (`quizzes`, `submissions`).
@@ -62,15 +62,24 @@ questions for any agent arriving cold:
 ## Admin-Auth (Security-Audit SEC-001/005/006/007/013/016)
 
 - `Settings` ist fail-closed: ohne starken `SECRET_KEY` (>= 32 Zeichen, kein
-  Platzhalter) oder mit `ADMIN_PASSWORD` < 12 Zeichen startet der Prozess nicht.
+  Platzhalter) startet der Prozess nicht. Ein `ADMIN_PASSWORD` < 12 Zeichen bzw.
+  Platzhalter wird geloggt und als nicht gesetzt behandelt (Admin-Login aus,
+  öffentliche Seiten laufen weiter).
 - Session-Cookie: Secure (`SESSION_HTTPS_ONLY`), HttpOnly, SameSite=Lax,
   `SESSION_MAX_AGE` (8 h). Admin-Session = Session-ID in einer In-Process-
   Allow-List (`app.core.security.admin_sessions`, absolute Ablaufzeit) +
   Passwort-Fingerprint (HMAC). Logout, Passwort-/Key-Wechsel und Neustart
   invalidieren Sessions.
 - Login-Drosselung pro Client-IP (`login_throttle`, Sliding Window,
-  `LOGIN_MAX_FAILURES`/`LOGIN_WINDOW_SECONDS` → 429). IP = uvicorn-Peer;
-  hinter einem Proxy nur korrekt mit `FORWARDED_ALLOW_IPS` = Proxy-Adresse.
+  `LOGIN_MAX_FAILURES`/`LOGIN_WINDOW_SECONDS` → 429). Schlüssel =
+  `client_key()`: uvicorn-Peer, IPv4-mapped → IPv4, IPv6 → /64-Präfix.
+  Hinter dem Proxy-Container nur korrekt, weil uvicorn dessen X-Forwarded-For
+  vertraut: das Image setzt `FORWARDED_ALLOW_IPS` = Loopback + private Netze
+  (per `.env` auf das Proxy-Subnetz einengbar). Ignoriertes X-Forwarded-For
+  von einem privaten Peer wird einmal als Warnung geloggt.
+- Inline-Admin-Speichern (`X-Inline: 1`) ohne gültige Session → 401 mit
+  Hinweis statt Redirect; `admin-workspace.js` lädt dann nicht neu, die
+  Eingaben bleiben erhalten.
 - Annahme: **ein** uvicorn-Prozess. Mehrere Worker/Replicas brauchen einen
   gemeinsamen Store für Session-Registry und Throttle.
 - `/docs`, `/redoc`, `/openapi.json` nur mit `ENABLE_API_DOCS=true`.
@@ -108,13 +117,18 @@ questions for any agent arriving cold:
 - Missbrauchsgrenzen: `submit_throttle` pro Client-IP
   (`SUBMIT_MAX_PER_MINUTE`/`SUBMIT_MAX_PER_HOUR` → 429), gleiche E-Mail + Quiz
   innerhalb `SUBMIT_DEDUP_WINDOW_SECONDS` → gespeichert, aber kein erneuter
-  CRM-/Mail-Versand; `BodySizeLimitMiddleware` (`API_MAX_BODY_BYTES` → 413) auf `/api`.
+  CRM-/Mail-Versand (Vergleich per `canonical_mailbox`: ohne `+tag`, bei
+  Gmail ohne Punkte; gespeichert wird die Adresse wie eingegeben); `BodySizeLimitMiddleware` (`API_MAX_BODY_BYTES` → 413) auf `/api`.
 - `app/interfaces/lead_mail.py` ist die **eine** Render-+Dispatch-Funktion für
   Submit und Admin-Retry; das Quiz wird über `submission.quiz_id` gebunden.
   Vorlagen erlauben nur `{score}` (Betreff) bzw. `{name} {score} {tier} {url}`
   (Text), geprüft beim Speichern (422) und beim Rendern (Fallback-Text, nie 500).
 - Retry wiederholt nur fehlgeschlagene Legs (bei Teilablehnung nur die
-  abgelehnten Empfänger), parallele Retries desselben Leads sind No-ops.
+  abgelehnten Empfänger), parallele Retries desselben Leads sind No-ops; der
+  Zustand wird nach Erhalt des Locks neu gelesen (REV-003).
+- Ergebnislinks `/r/<id>` leben nur so lange wie ihr Quiz (REV-002): ist das
+  Quiz (per `submission.quiz_id`) nicht mehr veröffentlicht, gibt es eine
+  neutrale 404-Seite ohne Tier-/Ergebnistexte.
 - SMTP: STARTTLS bzw. SMTPS (Port 465) mit `ssl.create_default_context()`
   (Zertifikat + Hostname geprüft). Jede Nachricht hat genau einen
   Umschlagempfänger; `email_sent` nur, wenn alle Nachrichten angenommen wurden.

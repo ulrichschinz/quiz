@@ -149,6 +149,116 @@ def test_duplicate_within_window_does_not_resend(client, seeded, engine, smtp_ca
         assert dup.email_sent is False and dup.email_error == pipeline.DUPLICATE_NOTE
 
 
+@pytest.mark.e2e
+@pytest.mark.parametrize(
+    "first,variant",
+    [
+        ("victim@example.com", "victim+1@example.com"),
+        ("victim@example.com", "Victim+spam@Example.com"),
+        ("victim@gmail.com", "v.ic.tim+x@googlemail.com"),
+    ],
+)
+def test_plus_and_dot_variants_count_as_duplicates(
+    client, seeded, engine, smtp_capture, first, variant
+):
+    """Review follow-up: sub-addressing must not bypass the one-mail window."""
+    assert client.post(URL, json=_body(client, email=first)).status_code == 200
+    assert len(smtp_capture) == 2
+    second = client.post(URL, json=_body(client, email=variant))
+    assert second.status_code == 200
+    assert len(smtp_capture) == 2  # no new customer/team mail
+    with Session(engine) as s:
+        dup = s.exec(select(Submission).where(Submission.public_id == second.json()["public_id"])).one()
+        assert dup.email.split("@")[0] == variant.split("@")[0]  # stored as entered
+        assert dup.email_error == pipeline.DUPLICATE_NOTE
+
+
+@pytest.mark.e2e
+def test_other_mailbox_same_domain_is_not_a_duplicate(client, seeded, engine, smtp_capture):
+    assert client.post(URL, json=_body(client, email="victim@example.com")).status_code == 200
+    assert client.post(URL, json=_body(client, email="victim2@example.com")).status_code == 200
+    assert len(smtp_capture) == 4
+
+
+# --- SEC-003 review follow-up: per-client limit behind a container proxy ------
+
+
+def _image_forwarded_allow_ips() -> str:
+    import re
+    from pathlib import Path
+
+    dockerfile = (Path(__file__).resolve().parents[2] / "Dockerfile").read_text()
+    m = re.search(r'^ENV FORWARDED_ALLOW_IPS="([^"]+)"', dockerfile, flags=re.M)
+    assert m, "Dockerfile must set a FORWARDED_ALLOW_IPS default"
+    return m.group(1)
+
+
+@pytest.mark.e2e
+def test_submit_limit_is_per_forwarded_client_behind_proxy(client, seeded, engine, monkeypatch):
+    """With the image's FORWARDED_ALLOW_IPS a proxy container's peer address is
+    trusted, so the limit applies to the forwarded client, not the whole site."""
+    from fastapi.testclient import TestClient
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    from app.main import app
+
+    monkeypatch.setenv("SUBMIT_MAX_PER_MINUTE", "2")
+    proxied = ProxyHeadersMiddleware(app, trusted_hosts=_image_forwarded_allow_ips())
+    proxy = TestClient(proxied, client=("172.18.0.5", 40000))  # e.g. Traefik's container IP
+    body = _body(client)
+
+    def post(ip: str) -> int:
+        return proxy.post(URL, json=body, headers={"X-Forwarded-For": ip}).status_code
+
+    assert [post("198.51.100.1") for _ in range(3)] == [200, 200, 429]
+    assert post("198.51.100.2") == 200  # another visitor behind the same proxy
+    # A spoofed left-most entry does not escape: the proxy-appended one counts.
+    assert post("10.9.9.9, 198.51.100.1") == 429
+
+
+@pytest.mark.e2e
+def test_untrusted_proxy_is_reported_once(client, seeded, monkeypatch, caplog):
+    from fastapi.testclient import TestClient
+
+    import app.core.security as sec
+    from app.main import app
+
+    monkeypatch.setattr(sec, "_untrusted_proxy_reported", False)
+    peer = TestClient(app, client=("172.18.0.5", 40000))  # no proxy-headers middleware
+    with caplog.at_level("WARNING", logger="quiz.core.security"):
+        peer.get("/api/quiz/test-quiz", headers={"X-Forwarded-For": "198.51.100.1"})
+        peer.post(URL, json=_body(client), headers={"X-Forwarded-For": "198.51.100.1"})
+        peer.post(URL, json=_body(client), headers={"X-Forwarded-For": "198.51.100.1"})
+    assert caplog.text.count("FORWARDED_ALLOW_IPS") == 1
+
+
+# --- REV-002: result links die with their quiz ---------------------------------
+
+
+@pytest.mark.e2e
+def test_result_link_of_unpublished_quiz_is_neutral_404(client, seeded, engine):
+    from app.domains.quizzes.models import Quiz, ResultTier
+
+    with Session(engine) as s:
+        for tier in s.exec(select(ResultTier)).all():
+            tier.body_de = "GEHEIMER-TIERTEXT"
+            s.add(tier)
+        s.commit()
+    r = client.post(URL, json=_body(client))
+    link = r.json()["redirect"]
+    assert "GEHEIMER-TIERTEXT" in client.get(link).text
+
+    with Session(engine) as s:
+        quiz = s.exec(select(Quiz)).one()
+        quiz.is_published = False
+        s.add(quiz)
+        s.commit()
+    page = client.get(link)
+    assert page.status_code == 404
+    assert "GEHEIMER-TIERTEXT" not in page.text
+    assert "nicht mehr verfügbar" in page.text
+
+
 # --- SEC-011: a broken stored template never fails the visitor ---------------
 
 

@@ -12,7 +12,7 @@ import json
 import uuid
 from datetime import timedelta
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlmodel import Session, col, select
 
 from app.domains.submissions.models import Submission
@@ -66,6 +66,7 @@ def get_public_submission(session: Session, public_id: str) -> SubmissionView | 
         return None
     return SubmissionView(
         public_id=submission.public_id,
+        quiz_id=submission.quiz_id,
         quiz_slug=submission.quiz_slug,
         lang=submission.lang,
         overall_score=submission.overall_score,
@@ -93,6 +94,31 @@ def get_submission(session: Session, submission_id: int) -> Submission | None:
     return session.get(Submission, submission_id)
 
 
+# Providers that ignore dots in the local part (v.ictim@ == victim@).
+_DOTLESS_DOMAINS = frozenset({"gmail.com", "googlemail.com"})
+# Upper bound on rows compared per duplicate check; the per-IP submit limit keeps
+# the real count far below it.
+_DEDUP_SCAN_LIMIT = 1000
+
+
+def canonical_mailbox(email: str) -> str:
+    """Delivery-equivalence key for the duplicate check (never stored/shown).
+
+    Lowercased; the local part loses everything from the first '+'
+    (sub-addressing); for gmail.com / googlemail.com dots are dropped as well
+    and googlemail.com folds into gmail.com. `victim+1@example.com` and
+    `Victim@example.com` therefore land in the same mailbox key.
+    """
+    local, sep, domain = email.strip().lower().rpartition("@")
+    if not sep:
+        return email.strip().lower()
+    local = local.split("+", 1)[0]
+    if domain in _DOTLESS_DOMAINS:
+        local = local.replace(".", "")
+        domain = "gmail.com"
+    return f"{local}@{domain}"
+
+
 def has_recent_submission(
     session: Session,
     *,
@@ -101,20 +127,26 @@ def has_recent_submission(
     within_seconds: int,
     exclude_id: int | None = None,
 ) -> bool:
-    """True iff another lead with the same email (case-insensitive) took this quiz
-    within the last `within_seconds` — the submit handler then does not fan the
-    duplicate out to CRM / email again (SEC-003)."""
+    """True iff another lead for the same mailbox took this quiz within the last
+    `within_seconds` — the submit handler then does not fan the duplicate out to
+    CRM / email again (SEC-003). Mailboxes are compared by `canonical_mailbox`,
+    so plus-addressing / Gmail dot variants do not bypass the window."""
     if within_seconds <= 0 or not email:
         return False
+    key = canonical_mailbox(email)
+    domain = key.rpartition("@")[2]
+    domains = list(_DOTLESS_DOMAINS) if domain in _DOTLESS_DOMAINS else [domain]
     since = utcnow() - timedelta(seconds=within_seconds)
-    stmt = select(Submission.id).where(
+    stmt = select(Submission.email).where(
         Submission.quiz_id == quiz_id,
-        func.lower(Submission.email) == email.lower(),
+        col(Submission.email).is_not(None),
         col(Submission.created_at) >= since,
+        or_(*[func.lower(Submission.email).like(f"%@{d}") for d in domains]),
     )
     if exclude_id is not None:
         stmt = stmt.where(Submission.id != exclude_id)
-    return session.exec(stmt.limit(1)).first() is not None
+    rows = session.exec(stmt.order_by(col(Submission.created_at).desc()).limit(_DEDUP_SCAN_LIMIT))
+    return any(other and canonical_mailbox(other) == key for other in rows)
 
 
 def stored_answers(submission: Submission) -> dict[int, int]:

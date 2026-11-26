@@ -43,6 +43,12 @@ def get_published_quiz(session: Session, slug: str) -> Quiz | None:
     return quiz if quiz is not None and quiz.is_published else None
 
 
+def get_published_quiz_by_id(session: Session, quiz_id: int) -> Quiz | None:
+    """The quiz with this id, but only while it is published (REV-002)."""
+    quiz = session.get(Quiz, quiz_id)
+    return quiz if quiz is not None and quiz.is_published else None
+
+
 def get_quiz_by_slug(session: Session, slug: str) -> Quiz | None:
     """Any quiz by slug regardless of publish state (results stay reachable)."""
     return session.exec(select(Quiz).where(Quiz.slug == slug)).first()

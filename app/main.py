@@ -8,7 +8,7 @@ ignore in pyproject.toml.
 The delivery layer is wired through `app.interfaces.{web,api}`: `web.register`
 includes the Jinja routers (+ domain auto-discovery), `api.register` mounts the
 JSON router. `NeedsLoginException` (raised by `require_admin`) maps to a login
-redirect.
+redirect (a 401 with a message for inline admin saves, `X-Inline: 1`).
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, Request  # noqa: E402
-from fastapi.responses import RedirectResponse  # noqa: E402
+from fastapi.responses import PlainTextResponse, RedirectResponse, Response  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from starlette.middleware.sessions import SessionMiddleware  # noqa: E402
 
@@ -38,6 +38,7 @@ from app.interfaces import api as api_iface  # noqa: E402
 from app.interfaces import web as web_iface  # noqa: E402
 
 STATIC_DIR = Path(__file__).parent.parent / "static"
+INLINE_SESSION_EXPIRED = "Sitzung abgelaufen – bitte in neuem Tab anmelden, dann erneut speichern."
 
 
 @asynccontextmanager
@@ -91,7 +92,12 @@ def create_app() -> FastAPI:
     application.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     @application.exception_handler(NeedsLoginException)
-    async def needs_login_handler(request: Request, exc: NeedsLoginException) -> RedirectResponse:
+    async def needs_login_handler(request: Request, exc: NeedsLoginException) -> Response:
+        # Inline admin saves (fetch + `X-Inline: 1`) get a 401 with a message
+        # instead of a redirect, so the editor keeps the unsaved input and tells
+        # the admin to log in again (sessions end on restart / after 8 h).
+        if request.headers.get("x-inline") == "1":
+            return PlainTextResponse(INLINE_SESSION_EXPIRED, status_code=401)
         return RedirectResponse(url="/login", status_code=303)
 
     web_iface.register(application)

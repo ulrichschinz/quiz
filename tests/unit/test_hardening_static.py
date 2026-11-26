@@ -133,3 +133,14 @@ def test_font_faces_point_at_vendored_files_with_licence() -> None:
         assert f"font-family: '{family}'" in css
     for lic in ("OFL-Fraunces.txt", "OFL-SpaceGrotesk.txt", "OFL-JetBrainsMono.txt"):
         assert "SIL OPEN FONT LICENSE" in (fonts / lic).read_text(encoding="utf-8").upper()
+
+
+# --- SEC-006 review follow-up: an expired session never discards admin input --
+
+
+def test_inline_save_does_not_reload_on_login_redirect() -> None:
+    js = (REPO / "static" / "admin" / "admin-workspace.js").read_text()
+    login_guard = js.index("/\\/login(?:[?#]|$)/.test(res.url)")
+    reload_call = js.index("window.location.reload()")
+    assert login_guard < reload_call  # the /login case is handled before any reload
+    assert "Sitzung abgelaufen" in js
