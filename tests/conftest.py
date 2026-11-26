@@ -34,11 +34,13 @@ ADMIN_PW = "correct-horse-battery-staple"
 
 @pytest.fixture(autouse=True)
 def _reset_auth_state() -> Iterator[None]:
-    """In-process login throttle + admin-session registry are module globals."""
+    """In-process login/submit throttles + admin-session registry are module globals."""
     core_security.login_throttle.clear()
+    core_security.submit_throttle.clear()
     core_security.admin_sessions.revoke_all()
     yield
     core_security.login_throttle.clear()
+    core_security.submit_throttle.clear()
     core_security.admin_sessions.revoke_all()
 
 

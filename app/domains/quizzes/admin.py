@@ -21,8 +21,10 @@ from app.domains.quizzes.models import (
     QuizResultConfig,
     ResultTier,
 )
+from app.domains.quizzes.schemas import BODY_PLACEHOLDERS, SUBJECT_PLACEHOLDERS
 from app.shared.clock import utcnow
 from app.shared.links import is_safe_link_url
+from app.shared.validation import template_errors
 
 
 def _next_position(session: Session, model: Any, **filters: int) -> int:
@@ -612,6 +614,29 @@ def update_landing(
     session.commit()
 
 
+def email_template_errors(
+    *,
+    email_subject_de: str,
+    email_subject_en: str,
+    email_body_de: str,
+    email_body_en: str,
+) -> list[str]:
+    """Human-readable problems with the result-email templates (empty == valid)."""
+    checks = (
+        ("Betreff (DE)", email_subject_de, SUBJECT_PLACEHOLDERS),
+        ("Betreff (EN)", email_subject_en, SUBJECT_PLACEHOLDERS),
+        ("Text (DE)", email_body_de, BODY_PLACEHOLDERS),
+        ("Text (EN)", email_body_en, BODY_PLACEHOLDERS),
+    )
+    problems: list[str] = []
+    for label, template, allowed in checks:
+        problems.extend(f"{label}: {p}" for p in template_errors(template, allowed))
+    if problems:
+        allowed_txt = "Betreff: {score}; Text: {name} {score} {tier} {url}"
+        problems.append(f"Erlaubt sind nur: {allowed_txt}")
+    return problems
+
+
 def get_result_config(session: Session, quiz_id: int) -> QuizResultConfig | None:
     return session.exec(select(QuizResultConfig).where(QuizResultConfig.quiz_id == quiz_id)).first()
 
@@ -629,6 +654,20 @@ def update_result_config(
     email_body_en: str,
     notify_emails: str,
 ) -> None:
+    """Save the results page + email config.
+
+    Raises ValueError (nothing saved) when a subject/body template uses anything
+    but the documented placeholders or has broken braces (SEC-011) — a bad
+    template must be caught here, not when a visitor submits.
+    """
+    problems = email_template_errors(
+        email_subject_de=email_subject_de,
+        email_subject_en=email_subject_en,
+        email_body_de=email_body_de,
+        email_body_en=email_body_en,
+    )
+    if problems:
+        raise ValueError("; ".join(problems))
     cfg = get_result_config(session, quiz_id)
     if cfg is None:
         cfg = QuizResultConfig(quiz_id=quiz_id)

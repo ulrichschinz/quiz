@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import timedelta
 
+from sqlalchemy import func
 from sqlmodel import Session, col, select
 
 from app.domains.submissions.models import Submission
@@ -89,3 +91,38 @@ def list_submissions(session: Session, quiz_id: int) -> list[Submission]:
 
 def get_submission(session: Session, submission_id: int) -> Submission | None:
     return session.get(Submission, submission_id)
+
+
+def has_recent_submission(
+    session: Session,
+    *,
+    quiz_id: int,
+    email: str,
+    within_seconds: int,
+    exclude_id: int | None = None,
+) -> bool:
+    """True iff another lead with the same email (case-insensitive) took this quiz
+    within the last `within_seconds` — the submit handler then does not fan the
+    duplicate out to CRM / email again (SEC-003)."""
+    if within_seconds <= 0 or not email:
+        return False
+    since = utcnow() - timedelta(seconds=within_seconds)
+    stmt = select(Submission.id).where(
+        Submission.quiz_id == quiz_id,
+        func.lower(Submission.email) == email.lower(),
+        col(Submission.created_at) >= since,
+    )
+    if exclude_id is not None:
+        stmt = stmt.where(Submission.id != exclude_id)
+    return session.exec(stmt.limit(1)).first() is not None
+
+
+def stored_answers(submission: Submission) -> dict[int, int]:
+    """The persisted {question_id: option_id} map (JSON keys are strings)."""
+    raw = json.loads(submission.answers_json or "{}")
+    return {int(k): int(v) for k, v in raw.items()}
+
+
+def stored_dimension_scores(submission: Submission) -> dict[str, int]:
+    raw = json.loads(submission.dimension_scores_json or "{}")
+    return {str(k): int(v) for k, v in raw.items()}

@@ -30,6 +30,7 @@ from app.core.config import get_settings  # noqa: E402
 from app.core.db import create_db  # noqa: E402
 from app.core.errors import NeedsLoginException  # noqa: E402
 from app.core.http_security import (  # noqa: E402
+    BodySizeLimitMiddleware,
     SameOriginGuardMiddleware,
     SecurityHeadersMiddleware,
 )
@@ -59,6 +60,7 @@ def create_app() -> FastAPI:
     /admin, /login, /logout whose Origin / Sec-Fetch-Site is not same-origin
     (SEC-008). SecurityHeadersMiddleware adds CSP, X-Frame-Options, nosniff,
     Referrer-/Permissions-Policy and HSTS on https (SEC-014).
+    BodySizeLimitMiddleware caps /api request bodies at API_MAX_BODY_BYTES (SEC-003).
     """
     settings = get_settings()
     docs = settings.enable_api_docs
@@ -82,6 +84,8 @@ def create_app() -> FastAPI:
     # the session (SEC-008), and every response — 403s and static files
     # included — carries the security headers (SEC-014).
     application.add_middleware(SameOriginGuardMiddleware, app_host=settings.app_host)
+    # SEC-003: cap the public JSON API's request body (413) before parsing.
+    application.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.api_max_body_bytes)
     application.add_middleware(SecurityHeadersMiddleware, hsts_max_age=settings.hsts_max_age)
 
     application.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

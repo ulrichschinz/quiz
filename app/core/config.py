@@ -63,6 +63,16 @@ class Settings(BaseSettings):
     login_max_failures: int = Field(default=10, ge=1)
     login_window_seconds: int = Field(default=15 * 60, ge=1)
 
+    # --- Public submit API abuse limits (SEC-003) ---
+    # Per client IP, sliding windows; exceeding either => HTTP 429. 0 disables.
+    submit_max_per_minute: int = Field(default=10, ge=0)
+    submit_max_per_hour: int = Field(default=50, ge=0)
+    # Same email + quiz again within this many seconds => result is stored and
+    # shown, but CRM/email are NOT triggered again. 0 disables.
+    submit_dedup_window_seconds: int = Field(default=600, ge=0)
+    # Max request body for /api/* (bytes) => HTTP 413 above it.
+    api_max_body_bytes: int = Field(default=64 * 1024, ge=1024)
+
     # --- Lead pipeline: vibe CRM push (empty url => leg skipped) ---
     crm_ingest_url: str = ""
     crm_api_key: str = ""
@@ -74,6 +84,8 @@ class Settings(BaseSettings):
 
     # --- Lead pipeline: SMTP email (empty host => leg skipped) ---
     smtp_host: str = ""
+    # 465 => implicit TLS (SMTPS); otherwise SMTP + STARTTLS (if SMTP_STARTTLS).
+    # Both verify the relay's certificate + hostname against the system CAs.
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""

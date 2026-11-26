@@ -14,6 +14,11 @@ Two small, domain-agnostic middlewares wired in `app/main.py`:
   every current browser sends ``Origin`` on a POST. The public JSON API
   (`/api/...`) is not covered — it is anonymous by design.
 
+* `BodySizeLimitMiddleware` (SEC-003) — requests under the given prefixes
+  (the public ``/api``) whose body exceeds ``max_bytes`` get 413: immediately
+  when ``Content-Length`` says so, otherwise as soon as the streamed body
+  crosses the limit (chunked uploads), before the app parses it.
+
 * `SecurityHeadersMiddleware` (SEC-014) — sets on *every* response:
   Content-Security-Policy, X-Frame-Options: DENY, X-Content-Type-Options:
   nosniff, Referrer-Policy, Permissions-Policy, and Strict-Transport-Security
@@ -33,6 +38,7 @@ import secrets
 from collections.abc import Iterable
 from urllib.parse import urlsplit
 
+from fastapi import HTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
@@ -129,6 +135,61 @@ class SameOriginGuardMiddleware:
             await send({"type": "http.response.body", "body": body})
             return
         await self.app(scope, receive, send)
+
+
+class BodySizeLimitMiddleware:
+    """413 for request bodies above `max_bytes` under `prefixes` (SEC-003)."""
+
+    def __init__(
+        self, app: ASGIApp, *, max_bytes: int, prefixes: Iterable[str] = ("/api",)
+    ) -> None:
+        self.app = app
+        self.max_bytes = max_bytes
+        self.prefixes = tuple(prefixes)
+
+    async def _reject(self, send: Send) -> None:
+        body = b'{"detail":"request body too large"}'
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 413,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"content-length", str(len(body)).encode()),
+                    (b"connection", b"close"),
+                ],
+            }
+        )
+        await send({"type": "http.response.body", "body": body})
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or not _path_protected(scope.get("path", ""), self.prefixes):
+            await self.app(scope, receive, send)
+            return
+        declared = _header(scope, b"content-length")
+        if declared is not None:
+            try:
+                too_big = int(declared) > self.max_bytes
+            except ValueError:
+                too_big = True
+            if too_big:
+                await self._reject(send)
+                return
+
+        received = 0
+
+        async def limited_receive() -> Message:
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > self.max_bytes:
+                    # Raised inside the app's body read -> FastAPI turns it into
+                    # the 413 response (its body parser re-raises HTTPException).
+                    raise HTTPException(status_code=413, detail="request body too large")
+            return message
+
+        await self.app(scope, limited_receive, send)
 
 
 def build_csp(nonce: str) -> str:

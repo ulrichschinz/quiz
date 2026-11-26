@@ -97,11 +97,17 @@ class DimensionBreakdown(BaseModel):
     questions: list[AnsweredQuestion]
 
 
+# The only placeholders a result-email template may use (SEC-011). Checked on
+# save (`quizzes.admin.email_template_errors`) and again at render time.
+SUBJECT_PLACEHOLDERS: frozenset[str] = frozenset({"score"})
+BODY_PLACEHOLDERS: frozenset[str] = frozenset({"name", "score", "tier", "url"})
+
+
 class EmailConfig(BaseModel):
     """Result-email settings for a quiz, resolved to one language."""
 
-    subject_template: str  # supports {score}
-    body_template: str  # supports {name} {score} {tier} {url}
+    subject_template: str  # supports SUBJECT_PLACEHOLDERS: {score}
+    body_template: str  # supports BODY_PLACEHOLDERS: {name} {score} {tier} {url}
     notify_emails: str  # comma-separated team recipients
 
 

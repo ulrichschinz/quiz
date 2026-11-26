@@ -97,6 +97,29 @@ questions for any agent arriving cold:
 - Schriften selbst gehostet unter `static/brand/fonts/` (woff2, OFL) — keine
   Anfrage an Google Fonts.
 
+## Lead-Strecke (Security-Audit SEC-002/003/004/009/010/011/017, REV-001/003)
+
+- Submit-DTO (`SubmitRequest`): `email` = genau **eine** gültige Adresse
+  (`app.shared.validation.normalize_email_address`, keine Listen/Display-Names/
+  Steuerzeichen; Pflichtfeld = Lead-Gate), `name`/`company` einzeilig, <= 200
+  Zeichen, `answers` <= 200 Einträge.
+- `quizzes.service.answer_errors`: nur Fragen/Optionen dieses Quiz, alle
+  Pflichtfragen beantwortet, sonst 422.
+- Missbrauchsgrenzen: `submit_throttle` pro Client-IP
+  (`SUBMIT_MAX_PER_MINUTE`/`SUBMIT_MAX_PER_HOUR` → 429), gleiche E-Mail + Quiz
+  innerhalb `SUBMIT_DEDUP_WINDOW_SECONDS` → gespeichert, aber kein erneuter
+  CRM-/Mail-Versand; `BodySizeLimitMiddleware` (`API_MAX_BODY_BYTES` → 413) auf `/api`.
+- `app/interfaces/lead_mail.py` ist die **eine** Render-+Dispatch-Funktion für
+  Submit und Admin-Retry; das Quiz wird über `submission.quiz_id` gebunden.
+  Vorlagen erlauben nur `{score}` (Betreff) bzw. `{name} {score} {tier} {url}`
+  (Text), geprüft beim Speichern (422) und beim Rendern (Fallback-Text, nie 500).
+- Retry wiederholt nur fehlgeschlagene Legs (bei Teilablehnung nur die
+  abgelehnten Empfänger), parallele Retries desselben Leads sind No-ops.
+- SMTP: STARTTLS bzw. SMTPS (Port 465) mit `ssl.create_default_context()`
+  (Zertifikat + Hostname geprüft). Jede Nachricht hat genau einen
+  Umschlagempfänger; `email_sent` nur, wenn alle Nachrichten angenommen wurden.
+- CSV-Export: Zellen mit führendem `= + - @ TAB CR` erhalten ein `'`.
+
 ## Roadmap (phased build)
 
 1. **Skeleton + Gate** ✅ — walking skeleton, `make verify` green.

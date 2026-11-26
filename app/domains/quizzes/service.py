@@ -129,6 +129,45 @@ def get_landing_view(session: Session, quiz: Quiz) -> LandingView:
     )
 
 
+def answer_errors(session: Session, quiz: Quiz, answers: dict[int, int]) -> list[str]:
+    """Why `answers` is not a valid, complete answer sheet for `quiz` (SEC-003/017).
+
+    Every key must be a question of this quiz, every value an option of that
+    question, and every required question (one the player can answer, i.e. with
+    at least one option) must be answered. Empty list == valid. The player never
+    skips a question, so a legitimate submit always passes.
+    """
+    questions = session.exec(select(Question).where(Question.quiz_id == quiz.id)).all()
+    question_ids = [q.id for q in questions if q.id is not None]
+    options = (
+        session.exec(
+            select(AnswerOption).where(col(AnswerOption.question_id).in_(question_ids))
+        ).all()
+        if question_ids
+        else []
+    )
+    options_by_q: dict[int, set[int]] = {}
+    for o in options:
+        if o.id is not None:
+            options_by_q.setdefault(o.question_id, set()).add(o.id)
+
+    problems: list[str] = []
+    known = set(question_ids)
+    for question_id, option_id in answers.items():
+        if question_id not in known:
+            problems.append(f"unknown question {question_id}")
+        elif option_id not in options_by_q.get(question_id, set()):
+            problems.append(f"invalid option for question {question_id}")
+    missing = [
+        q.id
+        for q in questions
+        if q.id is not None and q.is_required and options_by_q.get(q.id) and q.id not in answers
+    ]
+    if missing:
+        problems.append(f"unanswered questions: {sorted(missing)}")
+    return problems
+
+
 def score_submission(session: Session, quiz: Quiz, answers: dict[int, int]) -> ScoreResult:
     """Compute the per-dimension + overall score and resolve the tier.
 

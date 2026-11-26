@@ -176,6 +176,26 @@ class LoginThrottle:
 
 admin_sessions = AdminSessionRegistry()
 login_throttle = LoginThrottle()
+# SEC-003: the same sliding-window counter, reused as a per-IP request limiter
+# for the public submit API (every accepted request is recorded as a "hit").
+submit_throttle = LoginThrottle()
+
+
+def rate_limit(throttle: LoginThrottle, key: str, limits: list[tuple[int, int]]) -> int:
+    """Check `key` against several (max_hits, window_seconds) limits.
+
+    Returns the Retry-After seconds if any limit is exhausted (nothing recorded),
+    else records one hit in every window and returns 0. A max_hits of 0 disables
+    that limit.
+    """
+    active = [(n, w) for n, w in limits if n > 0]
+    for n, w in active:
+        wait = throttle.retry_after(f"{w}:{key}", n, w)
+        if wait:
+            return wait
+    for _n, w in active:
+        throttle.record_failure(f"{w}:{key}", w)
+    return 0
 
 
 def client_key(request: Request) -> str:
