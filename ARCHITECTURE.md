@@ -59,6 +59,22 @@ questions for any agent arriving cold:
   reflection, Jinja→route) are left empty, never guessed. See
   `docs/decisions/0001-code-index.md`.
 
+## Admin-Auth (Security-Audit SEC-001/005/006/007/013/016)
+
+- `Settings` ist fail-closed: ohne starken `SECRET_KEY` (>= 32 Zeichen, kein
+  Platzhalter) oder mit `ADMIN_PASSWORD` < 12 Zeichen startet der Prozess nicht.
+- Session-Cookie: Secure (`SESSION_HTTPS_ONLY`), HttpOnly, SameSite=Lax,
+  `SESSION_MAX_AGE` (8 h). Admin-Session = Session-ID in einer In-Process-
+  Allow-List (`app.core.security.admin_sessions`, absolute Ablaufzeit) +
+  Passwort-Fingerprint (HMAC). Logout, Passwort-/Key-Wechsel und Neustart
+  invalidieren Sessions.
+- Login-Drosselung pro Client-IP (`login_throttle`, Sliding Window,
+  `LOGIN_MAX_FAILURES`/`LOGIN_WINDOW_SECONDS` → 429). IP = uvicorn-Peer;
+  hinter einem Proxy nur korrekt mit `FORWARDED_ALLOW_IPS` = Proxy-Adresse.
+- Annahme: **ein** uvicorn-Prozess. Mehrere Worker/Replicas brauchen einen
+  gemeinsamen Store für Session-Registry und Throttle.
+- `/docs`, `/redoc`, `/openapi.json` nur mit `ENABLE_API_DOCS=true`.
+
 ## Roadmap (phased build)
 
 1. **Skeleton + Gate** ✅ — walking skeleton, `make verify` green.

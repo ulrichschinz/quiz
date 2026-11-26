@@ -7,16 +7,39 @@ any order without shared state.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlmodel import Session, SQLModel, create_engine
-from sqlmodel.pool import StaticPool
+# Fail-closed Settings (SEC-001/005): the app refuses to start without a strong
+# SECRET_KEY, and TestClient talks plain http, so the Secure cookie flag must be
+# off for the suite. Set BEFORE anything imports app.main / app.core.db.
+os.environ["SECRET_KEY"] = "test-only-secret-key-0123456789abcdefghijklmnop"
+os.environ["SESSION_HTTPS_ONLY"] = "false"
+os.environ.pop("ADMIN_PASSWORD", None)
+os.environ.pop("ENABLE_API_DOCS", None)
 
-import app.tables  # noqa: F401  registers every domain table on the metadata
-from app.core import db as core_db
-from app.main import app
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlmodel import Session, SQLModel, create_engine  # noqa: E402
+from sqlmodel.pool import StaticPool  # noqa: E402
+
+import app.tables  # noqa: F401,E402  registers every domain table on the metadata
+from app.core import db as core_db  # noqa: E402
+from app.core import security as core_security  # noqa: E402
+from app.main import app  # noqa: E402
+
+# A password that satisfies the ADMIN_PASSWORD minimum length (SEC-007).
+ADMIN_PW = "correct-horse-battery-staple"
+
+
+@pytest.fixture(autouse=True)
+def _reset_auth_state() -> Iterator[None]:
+    """In-process login throttle + admin-session registry are module globals."""
+    core_security.login_throttle.clear()
+    core_security.admin_sessions.revoke_all()
+    yield
+    core_security.login_throttle.clear()
+    core_security.admin_sessions.revoke_all()
 
 
 @pytest.fixture

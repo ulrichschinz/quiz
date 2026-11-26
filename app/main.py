@@ -41,17 +41,44 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
 
-app = FastAPI(title="Agentic Reach Quiz", lifespan=lifespan)
+def create_app() -> FastAPI:
+    """Build the ASGI app from the current Settings.
 
-app.add_middleware(SessionMiddleware, secret_key=get_settings().secret_key)
+    Constructing Settings here is the fail-closed startup check (SEC-001/007):
+    a missing/weak SECRET_KEY or too-short ADMIN_PASSWORD raises before the app
+    exists. API docs are off unless ENABLE_API_DOCS (SEC-016). The session
+    cookie is Secure (SESSION_HTTPS_ONLY), HttpOnly, SameSite=Lax and lives
+    SESSION_MAX_AGE seconds (SEC-005). Lax rather than Strict: Strict would drop
+    the cookie on every cross-site navigation (e.g. a link from a lead e-mail
+    into /admin) without adding CSRF protection for top-level POSTs beyond Lax.
+    """
+    settings = get_settings()
+    docs = settings.enable_api_docs
+    application = FastAPI(
+        title="Agentic Reach Quiz",
+        lifespan=lifespan,
+        docs_url="/docs" if docs else None,
+        redoc_url="/redoc" if docs else None,
+        openapi_url="/openapi.json" if docs else None,
+    )
 
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    application.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.secret_key,
+        max_age=settings.session_max_age,
+        same_site="lax",
+        https_only=settings.session_https_only,
+    )
+
+    application.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+    @application.exception_handler(NeedsLoginException)
+    async def needs_login_handler(request: Request, exc: NeedsLoginException) -> RedirectResponse:
+        return RedirectResponse(url="/login", status_code=303)
+
+    web_iface.register(application)
+    api_iface.register(application)
+    return application
 
 
-@app.exception_handler(NeedsLoginException)
-async def needs_login_handler(request: Request, exc: NeedsLoginException) -> RedirectResponse:
-    return RedirectResponse(url="/login", status_code=303)
-
-
-web_iface.register(app)
-api_iface.register(app)
+app = create_app()

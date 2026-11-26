@@ -8,25 +8,57 @@ re-instantiation cost is irrelevant.
 
 `.env` loading is NOT configured here: `app/main.py` calls `load_dotenv()`
 before any `Settings()` is constructed.
+
+Security-relevant fields fail closed (SEC-001 / SEC-007): a missing, short or
+placeholder `SECRET_KEY` and a too-short `ADMIN_PASSWORD` raise a
+`ValidationError` at construction — `app/main.py` constructs Settings at import
+time, so the process refuses to start. `hide_input_in_errors` keeps the secret
+values themselves out of the error text / logs.
 """
 
 from __future__ import annotations
 
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+SECRET_KEY_MIN_LENGTH = 32
+ADMIN_PASSWORD_MIN_LENGTH = 12
+_SECRET_KEY_HINT = 'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(48))"'
+# Publicly known values (old code default, .env.example placeholder). Anything
+# starting with "change-me" is rejected as well.
+KNOWN_PLACEHOLDER_SECRETS = frozenset(
+    {
+        "dev-secret-change-me",
+        "change-me-generate-a-random-64-char-hex",
+    }
+)
 
 
 class Settings(BaseSettings):
     """Process configuration, sourced from the environment."""
 
-    model_config = SettingsConfigDict(case_sensitive=False, extra="ignore")
+    model_config = SettingsConfigDict(
+        case_sensitive=False, extra="ignore", hide_input_in_errors=True
+    )
 
     # --- Core ---
     database_url: str = "sqlite:///./quiz.db"
-    secret_key: str = "dev-secret-change-me"
+    # Session-cookie signing key. No usable default: must be set (see validator).
+    secret_key: str = Field(default="", validate_default=True)
     app_host: str = ""
+    # FastAPI /docs, /redoc, /openapi.json — off unless explicitly enabled (local dev).
+    enable_api_docs: bool = False
 
     # --- Admin (single-password admin area) ---
+    # Unset/empty => admin login disabled. If set: >= ADMIN_PASSWORD_MIN_LENGTH chars.
     admin_password: str | None = None
+    # Session cookie: Secure flag (disable only for plain-http local dev/tests)
+    # and lifetime in seconds (also enforced server-side per login).
+    session_https_only: bool = True
+    session_max_age: int = Field(default=8 * 60 * 60, ge=60)
+    # Login brute-force throttle: per client IP, sliding window.
+    login_max_failures: int = Field(default=10, ge=1)
+    login_window_seconds: int = Field(default=15 * 60, ge=1)
 
     # --- Lead pipeline: vibe CRM push (empty url => leg skipped) ---
     crm_ingest_url: str = ""
@@ -44,6 +76,33 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = ""
     smtp_starttls: bool = True
+
+    @field_validator("secret_key")
+    @classmethod
+    def _secret_key_strong(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError(f"SECRET_KEY is not set. {_SECRET_KEY_HINT}")
+        if v in KNOWN_PLACEHOLDER_SECRETS or v.lower().startswith("change-me"):
+            raise ValueError(f"SECRET_KEY is a known placeholder value. {_SECRET_KEY_HINT}")
+        if len(v) < SECRET_KEY_MIN_LENGTH:
+            raise ValueError(
+                f"SECRET_KEY is too short (minimum {SECRET_KEY_MIN_LENGTH} characters). "
+                f"{_SECRET_KEY_HINT}"
+            )
+        return v
+
+    @field_validator("admin_password")
+    @classmethod
+    def _admin_password_strong(cls, v: str | None) -> str | None:
+        if not v:
+            return v  # unset/empty => admin login disabled (fail-closed)
+        if len(v) < ADMIN_PASSWORD_MIN_LENGTH or v.lower().startswith("change-me"):
+            raise ValueError(
+                f"ADMIN_PASSWORD must be at least {ADMIN_PASSWORD_MIN_LENGTH} characters "
+                "and not a placeholder (leave it empty to disable the admin login)."
+            )
+        return v
 
 
 def get_settings() -> Settings:
