@@ -145,6 +145,24 @@
   }
 
   // --- delegated listeners ------------------------------------------------
+  // Confirmation for destructive forms: <form data-confirm="Wirklich …?">.
+  // Replaces inline onsubmit="return confirm(…)" handlers, which the CSP
+  // (script-src without 'unsafe-inline', SEC-014) would block. Capture phase,
+  // so a cancel also stops the inline-save handler below.
+  document.addEventListener(
+    "submit",
+    function (e) {
+      var form = e.target;
+      if (!(form instanceof HTMLFormElement)) return;
+      var msg = form.getAttribute("data-confirm");
+      if (msg && !window.confirm(msg)) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+    },
+    true
+  );
+
   document.addEventListener("submit", function (e) {
     var form = e.target;
     if (!(form instanceof HTMLFormElement) || !form.hasAttribute("data-inline")) return;

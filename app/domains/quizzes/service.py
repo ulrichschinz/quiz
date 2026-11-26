@@ -35,7 +35,7 @@ from app.domains.quizzes.schemas import (
     ScoreResult,
 )
 from app.shared.i18n import pick
-from app.shared.links import call_booking_url, call_label
+from app.shared.links import call_booking_url, call_label, is_safe_link_url
 
 
 def get_published_quiz(session: Session, slug: str) -> Quiz | None:
@@ -212,6 +212,8 @@ def get_result_view(
     # visitor's language); a tier may override the URL/label per band.
     tier_cta_label = pick(tier.cta_label_de, tier.cta_label_en, lang) if tier else ""
     tier_cta_url = (tier.cta_url if tier else None) or ""
+    if tier_cta_url and not is_safe_link_url(tier_cta_url):
+        tier_cta_url = ""  # SEC-015: a legacy unsafe value falls back to the default
 
     return ResultView(
         intro=pick(cfg.intro_de, cfg.intro_en, lang) if cfg else "",

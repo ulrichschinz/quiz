@@ -29,6 +29,10 @@ from starlette.middleware.sessions import SessionMiddleware  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.core.db import create_db  # noqa: E402
 from app.core.errors import NeedsLoginException  # noqa: E402
+from app.core.http_security import (  # noqa: E402
+    SameOriginGuardMiddleware,
+    SecurityHeadersMiddleware,
+)
 from app.interfaces import api as api_iface  # noqa: E402
 from app.interfaces import web as web_iface  # noqa: E402
 
@@ -51,6 +55,10 @@ def create_app() -> FastAPI:
     SESSION_MAX_AGE seconds (SEC-005). Lax rather than Strict: Strict would drop
     the cookie on every cross-site navigation (e.g. a link from a lead e-mail
     into /admin) without adding CSRF protection for top-level POSTs beyond Lax.
+    CSRF beyond Lax: SameOriginGuardMiddleware rejects unsafe requests to
+    /admin, /login, /logout whose Origin / Sec-Fetch-Site is not same-origin
+    (SEC-008). SecurityHeadersMiddleware adds CSP, X-Frame-Options, nosniff,
+    Referrer-/Permissions-Policy and HSTS on https (SEC-014).
     """
     settings = get_settings()
     docs = settings.enable_api_docs
@@ -69,6 +77,12 @@ def create_app() -> FastAPI:
         same_site="lax",
         https_only=settings.session_https_only,
     )
+    # Added after the session middleware => runs *before* it (outermost last):
+    # cross-origin admin/login/logout mutations are refused without touching
+    # the session (SEC-008), and every response — 403s and static files
+    # included — carries the security headers (SEC-014).
+    application.add_middleware(SameOriginGuardMiddleware, app_host=settings.app_host)
+    application.add_middleware(SecurityHeadersMiddleware, hsts_max_age=settings.hsts_max_age)
 
     application.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 

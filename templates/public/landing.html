@@ -2,23 +2,25 @@
 {% block title %}Agentic AI Readiness Scorecard{% endblock %}
 
 {% block content %}
+{# Admin copy: escaped except bare <em>/<strong>/<br> (inline_html, SEC-015);
+   lang.js applies the same allowlist to the data-de/data-en variants. #}
 <section class="ar-container" style="padding: var(--ar-space-20) 0;">
   <div style="max-width: 760px;">
   {% if landing %}
     <span class="ar-eyebrow"
           data-de="{{ landing.hero_eyebrow_de }}"
-          data-en="{{ landing.hero_eyebrow_en }}">{{ landing.hero_eyebrow_de }}</span>
+          data-en="{{ landing.hero_eyebrow_en }}">{{ landing.hero_eyebrow_de|inline_html }}</span>
     <h1 class="ar-display-l" style="margin-top: var(--ar-space-3);"
         data-de="{{ landing.hero_headline_de }}"
-        data-en="{{ landing.hero_headline_en }}">{{ landing.hero_headline_de|safe }}</h1>
+        data-en="{{ landing.hero_headline_en }}">{{ landing.hero_headline_de|inline_html }}</h1>
     <p class="ar-lead" style="margin-top: var(--ar-space-5);"
        data-de="{{ landing.hero_subline_de }}"
-       data-en="{{ landing.hero_subline_en }}">{{ landing.hero_subline_de }}</p>
+       data-en="{{ landing.hero_subline_en }}">{{ landing.hero_subline_de|inline_html }}</p>
 
     {% if landing.benefits %}
     <ul class="ar-list-mono" style="margin-top: var(--ar-space-6);">
       {% for b in landing.benefits %}
-      <li data-de="{{ b.de }}" data-en="{{ b.en }}">{{ b.de }}</li>
+      <li data-de="{{ b.de }}" data-en="{{ b.en }}">{{ b.de|inline_html }}</li>
       {% endfor %}
     </ul>
     {% endif %}
@@ -26,7 +28,7 @@
     <div style="margin-top: var(--ar-space-8); display:flex; gap: var(--ar-space-3); align-items:center;">
       <a href="/q/{{ landing.slug }}/take" class="ar-btn ar-btn-coral"
          data-de="{{ landing.cta_label_de }}"
-         data-en="{{ landing.cta_label_en }}">{{ landing.cta_label_de }}</a>
+         data-en="{{ landing.cta_label_en }}">{{ landing.cta_label_de|inline_html }}</a>
       <span class="ar-mono" style="opacity:.6;"
             data-de="// ca. {{ landing.estimated_minutes }} Min."
             data-en="// approx. {{ landing.estimated_minutes }} min">// ca. {{ landing.estimated_minutes }} Min.</span>

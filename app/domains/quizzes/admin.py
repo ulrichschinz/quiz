@@ -22,6 +22,7 @@ from app.domains.quizzes.models import (
     ResultTier,
 )
 from app.shared.clock import utcnow
+from app.shared.links import is_safe_link_url
 
 
 def _next_position(session: Session, model: Any, **filters: int) -> int:
@@ -557,6 +558,10 @@ def update_tier(
     cta_url: str,
     position: int,
 ) -> None:
+    cta_url = cta_url.strip()
+    if cta_url and not is_safe_link_url(cta_url):
+        # SEC-015: only http(s) or site-relative targets — never javascript:/data:.
+        raise ValueError("cta_url must be an http(s):// URL or a relative path")
     t = session.get(ResultTier, tier_id)
     if t is None:
         return

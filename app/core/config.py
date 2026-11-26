@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     app_host: str = ""
     # FastAPI /docs, /redoc, /openapi.json — off unless explicitly enabled (local dev).
     enable_api_docs: bool = False
+    # Strict-Transport-Security max-age (seconds), sent only on https requests
+    # (directly or X-Forwarded-Proto: https). 0 disables the header (SEC-014).
+    hsts_max_age: int = Field(default=365 * 24 * 60 * 60, ge=0)
 
     # --- Admin (single-password admin area) ---
     # Unset/empty => admin login disabled. If set: >= ADMIN_PASSWORD_MIN_LENGTH chars.

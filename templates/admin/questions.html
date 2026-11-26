@@ -41,7 +41,7 @@
 
     <form method="post" action="/admin/questions/{{ focused.q.id }}/delete"
           style="margin-top: var(--ar-space-10);"
-          onsubmit="return confirm('Diese Frage und ihre Antworten wirklich löschen?');">
+          data-confirm="Diese Frage und ihre Antworten wirklich löschen?">
       <input type="hidden" name="quiz_id" value="{{ quiz.id }}">
       <button class="ar-btn ar-btn-ghost">Frage löschen</button>
     </form>

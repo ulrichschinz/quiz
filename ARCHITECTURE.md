@@ -75,6 +75,28 @@ questions for any agent arriving cold:
   gemeinsamen Store für Session-Registry und Throttle.
 - `/docs`, `/redoc`, `/openapi.json` nur mit `ENABLE_API_DOCS=true`.
 
+## Web-Härtung (Security-Audit SEC-008/014/015/020)
+
+- `app.core.http_security` (reines ASGI, in `app/main.py` verdrahtet):
+  - `SameOriginGuardMiddleware`: POST/PUT/PATCH/DELETE auf `/admin…`, `/login`,
+    `/logout` → 403 bei `Sec-Fetch-Site: cross-site|same-site` oder fremdem
+    `Origin` (erlaubt: eigener `Host` bzw. `APP_HOST`). Ohne beide Header
+    (Nicht-Browser) durchgelassen. `/api/*` (anonymer Submit) ist ausgenommen.
+  - `SecurityHeadersMiddleware`: auf jeder Antwort CSP (`script-src 'self'
+    'nonce-…'`, kein Inline-Skript; `style-src 'unsafe-inline'` bewusst für
+    `style=`-Attribute der Templates/Ergebnis-Charts; `font-src 'self'`,
+    `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `nosniff`,
+    `Referrer-Policy`, `Permissions-Policy`; HSTS (`HSTS_MAX_AGE`) nur bei https
+    bzw. `X-Forwarded-Proto: https`. Nonce: `request.state.csp_nonce`.
+- Keine Inline-Skripte/-Handler: Sprachumschalter in `static/quiz/lang.js`,
+  Lösch-Bestätigungen per `data-confirm` (`static/admin/admin-workspace.js`).
+- Admin-Texte: nie `|safe`; Filter `inline_html` (`app.shared.safe_html`)
+  escaped alles außer `<em>`, `<strong>`, `<br>`; `lang.js` baut DOM-Knoten mit
+  derselben Allowlist statt `innerHTML`. Tier-`cta_url` nur `http(s)://` oder
+  relativer Pfad (`app.shared.links.is_safe_link_url`, sonst 422).
+- Schriften selbst gehostet unter `static/brand/fonts/` (woff2, OFL) — keine
+  Anfrage an Google Fonts.
+
 ## Roadmap (phased build)
 
 1. **Skeleton + Gate** ✅ — walking skeleton, `make verify` green.

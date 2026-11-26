@@ -28,6 +28,7 @@ from app.domains.quizzes import admin as quizzes_admin
 from app.domains.quizzes import service as quizzes_service
 from app.domains.submissions import pipeline
 from app.domains.submissions import service as submissions_service
+from app.shared.links import is_safe_link_url
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
 templates = Jinja2Templates(directory="templates")
@@ -720,6 +721,12 @@ def update_tier(
         return _invalid(request, quiz_id, "Min/Max müssen ganze Zahlen sein.")
     if mn > mx:
         return _invalid(request, quiz_id, "Min darf nicht größer als Max sein.")
+    if cta_url.strip() and not is_safe_link_url(cta_url.strip()):
+        return _invalid(
+            request,
+            quiz_id,
+            "Button-Link muss mit http:// oder https:// beginnen oder ein relativer Pfad (/…) sein.",
+        )
     quizzes_admin.update_tier(
         session,
         tier_id,

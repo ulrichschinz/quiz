@@ -19,6 +19,7 @@ from app.core.db import get_session
 from app.domains.quizzes import service as quizzes_service
 from app.domains.submissions import service as submissions_service
 from app.shared.charts import radar_geometry
+from app.shared.safe_html import inline_html
 from app.shared.scoring_display import score_level
 
 router = APIRouter()
@@ -27,6 +28,8 @@ templates = Jinja2Templates(directory="templates")
 # the traffic-light colour, radar_geometry builds the results-page net chart.
 templates.env.globals["score_level"] = score_level
 templates.env.globals["radar_geometry"] = radar_geometry
+# Admin-editable copy: escape all but <em>/<strong>/<br> (SEC-015; never |safe).
+templates.env.filters["inline_html"] = inline_html
 
 
 @router.get("/", response_class=HTMLResponse)

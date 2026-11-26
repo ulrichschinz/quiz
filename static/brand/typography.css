@@ -1,9 +1,10 @@
 /* ==========================================================================
    Agentic Reach — Typography
-   Load Space Grotesk, Fraunces, JetBrains Mono and define text classes.
+   Load Space Grotesk, Fraunces, JetBrains Mono (self-hosted) and define text classes.
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,300;9..144,400&display=swap');
+/* Self-hosted (SEC-020): no Google Fonts request. */
+@import url('./fonts/fonts.css');
 
 /* ── Containers ───────────────────────────────────────────────────────── */
 .ar-container {
