@@ -6,27 +6,38 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
       - name: Pip cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements*.txt', 'requirements.lock') }}
 
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
           pip install -r requirements-dev.txt
+
+      # SEC-012/SEC-019: fail on any known advisory in what the image ships
+      # (requirements.lock = requirements.txt + all transitive pins, hashed).
+      - name: Dependency audit
+        run: make PY=python audit
 
       # THE gate: lint + format-check + mypy + import-contracts + test-fast + doc-gate.
       # CI uses the runner's system Python (no .venv), hence the PY/LINT_IMPORTS overrides.

@@ -4,7 +4,7 @@ PY ?= .venv/bin/python
 # import-linter ships only a console script (no `python -m` entrypoint).
 LINT_IMPORTS ?= .venv/bin/lint-imports
 
-.PHONY: help install dev-install verify lint format-check fmt typecheck contracts doc-gate test test-fast test-e2e new-quiz seed clean index index-q index-status index-hooks
+.PHONY: help install dev-install verify lint format-check fmt typecheck contracts doc-gate test test-fast test-e2e new-quiz seed clean lock audit index index-q index-status index-hooks
 
 help:
 	@echo "Agentic Reach Quiz — make targets"
@@ -18,6 +18,8 @@ help:
 	@echo "  make doc-gate         assert ARCHITECTURE.md Kennzahlen vs. code"
 	@echo "  make new-quiz X       scaffold a new domain (app/domains/X + test)"
 	@echo "  make seed             load the flagship quiz into the DB"
+	@echo "  make lock             regenerate hash-pinned requirements.lock (needs uv)"
+	@echo "  make audit            pip-audit requirements.lock against known advisories"
 	@echo "  make test             full test suite"
 	@echo "  make test-fast        unit + integration (skip e2e)"
 	@echo "  make test-e2e         end-to-end tests (FastAPI TestClient)"
@@ -69,6 +71,17 @@ new-quiz:
 	$(PY) scripts/new_quiz_module.py $(if $(NAME),$(NAME),$(filter-out new-quiz,$(MAKECMDGOALS)))
 %:
 	@:
+
+# Hash-pinned lockfile for the Docker image (SEC-019). requirements.txt stays
+# the human-edited source of top-level pins; re-run after changing it (a unit
+# test fails if the two disagree).
+lock:
+	uv pip compile requirements.txt --universal --python-version 3.12 \
+		--generate-hashes --custom-compile-command "make lock" --quiet \
+		-o requirements.lock
+
+audit:
+	$(PY) -m pip_audit --strict --progress-spinner off --disable-pip --require-hashes -r requirements.lock
 
 seed:
 	PYTHONPATH=. $(PY) scripts/seed_flagship.py

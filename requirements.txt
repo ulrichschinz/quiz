@@ -1,10 +1,16 @@
-fastapi==0.115.12
+fastapi==0.165.0
+# Pinned explicitly (SEC-012): fastapi only bounds it from below. >=1.3.1 fixes
+# GHSA-82w8-qh3p-5jfq, GHSA-7f5h-v6xp-fcq8, GHSA-2c2j-9gv5-cj73 et al.
+starlette==1.10.0
 uvicorn[standard]==0.34.0
 sqlmodel==0.0.22
 pydantic-settings==2.7.1
 alembic==1.14.0
-jinja2==3.1.5
-python-multipart==0.0.20
+jinja2==3.1.6
+python-multipart==0.0.34
 itsdangerous==2.2.0
 httpx==0.28.1
-python-dotenv==1.0.1
+python-dotenv==1.2.4
+# Transitive, pinned to patched releases (SEC-012, OSV advisories):
+anyio==4.16.0
+mako==1.4.3

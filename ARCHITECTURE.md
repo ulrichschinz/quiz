@@ -120,6 +120,24 @@ questions for any agent arriving cold:
   Umschlagempfänger; `email_sent` nur, wenn alle Nachrichten angenommen wurden.
 - CSV-Export: Zellen mit führendem `= + - @ TAB CR` erhalten ein `'`.
 
+## Lieferkette & Deployment (Security-Audit SEC-012/018/019)
+
+- `requirements.txt` = handgepflegte Top-Level-Pins (starlette und gepatchte
+  Transitive wie anyio/mako explizit). `requirements.lock` = vollständige,
+  sha256-gehashte Auflösung (`make lock`, braucht `uv`); das Image installiert
+  nur daraus (`pip install --require-hashes`). Ein Unit-Test schlägt fehl, wenn
+  beide auseinanderlaufen oder eine Mindestversion aus dem Audit unterschritten
+  wird.
+- `make audit` (pip-audit gegen `requirements.lock`) läuft in `test.yml` und vor
+  jedem Deploy; der Deploy-Workflow führt vor build-and-push das volle Gate
+  (`verify` + E2E) auf genau dem gebauten Commit aus.
+- Alle Actions sind auf 40-stellige Commit-SHAs gepinnt (`# vX.Y.Z`-Kommentar);
+  `.github/dependabot.yml` aktualisiert Actions und pip wöchentlich.
+- Repo-Compose bindet die App nur an `127.0.0.1:8000`; `.dockerignore` hält
+  `.env*`, `*.db`, `.venv`, `.git`, `docs/`, `tests/` aus dem Image. Der
+  Container läuft noch als root (Umstellung auf `USER app` nur zusammen mit
+  `chown` der gemounteten `quiz.db` auf dem Server, siehe Dockerfile).
+
 ## Roadmap (phased build)
 
 1. **Skeleton + Gate** ✅ — walking skeleton, `make verify` green.

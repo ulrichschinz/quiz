@@ -1,0 +1,18 @@
+# SEC-019: keep SHA-pinned actions and pinned Python deps current.
+# Python bumps land in requirements*.txt; after merging one, run `make lock`
+# (tests/unit/test_supply_chain.py fails CI until requirements.lock agrees).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
