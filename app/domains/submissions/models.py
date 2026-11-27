@@ -9,8 +9,7 @@ DB level too (enables a later DB split without a data migration).
 
 from __future__ import annotations
 
-from datetime import datetime
-
+from pydantic import NaiveDatetime
 from sqlmodel import Field
 
 from app.core.db import SQLModel
@@ -39,12 +38,12 @@ class Submission(SQLModel, table=True):
     company: str | None = Field(default=None)
     consent: bool = Field(default=False)  # DSGVO marketing consent
 
-    completed_at: datetime | None = Field(default=None)
-    created_at: datetime = Field(default_factory=utcnow)
+    completed_at: NaiveDatetime | None = Field(default=None)
+    created_at: NaiveDatetime = Field(default_factory=utcnow)
 
     # Pipeline audit trail (one flag/error per destination).
     crm_pushed: bool = Field(default=False)
-    crm_pushed_at: datetime | None = Field(default=None)
+    crm_pushed_at: NaiveDatetime | None = Field(default=None)
     crm_error: str | None = Field(default=None)
     email_sent: bool = Field(default=False)
     email_error: str | None = Field(default=None)
