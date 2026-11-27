@@ -248,3 +248,34 @@ def test_valid_template_is_saved(client, seeded, engine, monkeypatch):
         headers={"X-Inline": "1"},
     )
     assert r.status_code == 204
+
+
+@pytest.mark.e2e
+@pytest.mark.parametrize(
+    "value", ["a@x.de\nBcc: evil@y.de", "a@x.de; b@y.de", "\"a,b\"@x.de", "not-an-address"]
+)
+def test_invalid_notify_emails_rejected_on_save(client, seeded, engine, monkeypatch, value):
+    _login(client, monkeypatch)
+    qid = _quiz_id(engine)
+    r = client.post(
+        f"/admin/quizzes/{qid}/result", data=_result_form(notify_emails=value), headers={"X-Inline": "1"}
+    )
+    assert r.status_code == 422
+    with Session(engine) as s:
+        cfg = s.exec(select(QuizResultConfig).where(QuizResultConfig.quiz_id == qid)).one()
+        assert cfg.notify_emails != value
+
+
+@pytest.mark.e2e
+def test_notify_emails_normalised_on_save(client, seeded, engine, monkeypatch):
+    _login(client, monkeypatch)
+    qid = _quiz_id(engine)
+    r = client.post(
+        f"/admin/quizzes/{qid}/result",
+        data=_result_form(notify_emails=" Team@Example.COM , ops@example.com,team@example.com "),
+        headers={"X-Inline": "1"},
+    )
+    assert r.status_code == 204
+    with Session(engine) as s:
+        cfg = s.exec(select(QuizResultConfig).where(QuizResultConfig.quiz_id == qid)).one()
+        assert cfg.notify_emails == "Team@example.com, ops@example.com"

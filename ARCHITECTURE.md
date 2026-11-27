@@ -149,8 +149,10 @@ questions for any agent arriving cold:
   `.github/dependabot.yml` aktualisiert Actions und pip wöchentlich.
 - Repo-Compose bindet die App nur an `127.0.0.1:8000`; `.dockerignore` hält
   `.env*`, `*.db`, `.venv`, `.git`, `docs/`, `tests/` aus dem Image. Der
-  Container läuft noch als root (Umstellung auf `USER app` nur zusammen mit
-  `chown` der gemounteten `quiz.db` auf dem Server, siehe Dockerfile).
+  Container läuft als UID 10001 ohne Schreibrecht auf den Quellcode; schreibbar
+  ist nur `/app/data`, dort liegt die gemountete `quiz.db` (Host-Datei `10001:0`,
+  Modus 660; `DATABASE_URL=sqlite:////app/data/quiz.db`).
+- SMTP-Login ohne TLS (STARTTLS aus, Port ≠ 465) wird verweigert.
 
 ## Roadmap (phased build)
 

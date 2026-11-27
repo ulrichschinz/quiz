@@ -229,3 +229,13 @@ def test_untrusted_relay_certificate_aborts_before_login(engine, tmp_path, monke
         _send(s, sub)
         assert sub.email_sent is False
         assert "CERTIFICATE_VERIFY_FAILED" in (sub.email_error or "")
+
+
+def test_smtp_auth_without_tls_is_refused(engine, fake_smtp, monkeypatch) -> None:
+    monkeypatch.setenv("SMTP_STARTTLS", "false")
+    monkeypatch.setenv("SMTP_PORT", "587")
+    with Session(engine) as s:
+        sub = _make_submission(s)
+        _send(s, sub)
+        assert sub.email_sent is False
+    assert fake_smtp.instances == []  # never even connected

@@ -26,16 +26,18 @@ EXPOSE 8000
 # `docker network inspect traefik-public -f '{{(index .IPAM.Config 0).Subnet}}'`.
 ENV FORWARDED_ALLOW_IPS="127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 
-# SEC-018 (operator follow-up, deliberately NOT done here): the container still
-# runs as root. Production bind-mounts a root-owned ./quiz.db into /app/quiz.db;
-# switching to an unprivileged user without first fixing the host file's owner
-# would make every DB write (and the startup migration) fail. Do both together:
-#   1. here:   RUN useradd --system --uid 10001 --no-create-home app \
-#                && chown -R app /app
-#              USER app
-#   2. server: chown 10001:10001 /opt/services/quiz/quiz.db (the bind-mounted
-#              file). SQLite writes its -journal/-wal next to the DB, i.e. in
-#              the container's /app, which step 1 makes writable for `app`.
+# SEC-018: run unprivileged. The source tree stays root-owned and read-only for
+# the app user; only /app/data is writable. Production bind-mounts the lead DB
+# as /app/data/quiz.db (host file owned 10001:0, mode 660) and SQLite writes its
+# rollback journal next to it, inside /app/data.
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    DATABASE_URL=sqlite:////app/data/quiz.db
+RUN python -m compileall -q app codeindex migrations \
+    && useradd --system --uid 10001 --gid 0 --no-create-home --shell /usr/sbin/nologin app \
+    && mkdir -p /app/data \
+    && chown 10001:0 /app/data \
+    && chmod 2770 /app/data
+USER 10001
 
 # Schema is migrated in-process on startup (app.core.db.create_db → Alembic).
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

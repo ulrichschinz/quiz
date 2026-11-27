@@ -24,7 +24,7 @@ from app.domains.quizzes.models import (
 from app.domains.quizzes.schemas import BODY_PLACEHOLDERS, SUBJECT_PLACEHOLDERS
 from app.shared.clock import utcnow
 from app.shared.links import is_safe_link_url
-from app.shared.validation import template_errors
+from app.shared.validation import normalize_email_address, template_errors
 
 
 def _next_position(session: Session, model: Any, **filters: int) -> int:
@@ -641,6 +641,28 @@ def get_result_config(session: Session, quiz_id: int) -> QuizResultConfig | None
     return session.exec(select(QuizResultConfig).where(QuizResultConfig.quiz_id == quiz_id)).first()
 
 
+def normalize_notify_emails(raw: str) -> str:
+    """Validate the comma-separated team recipients; return them normalised.
+
+    Each entry must be exactly one plain address (same rules as the public
+    submit, SEC-002) — a stray quote or newline must not become an extra SMTP
+    recipient or header. Raises ValueError naming the bad entry.
+    """
+    out: list[str] = []
+    for entry in (e.strip() for e in raw.split(",")):
+        if not entry:
+            continue
+        try:
+            addr = normalize_email_address(entry)
+        except ValueError as exc:
+            raise ValueError(f"Ungültige Benachrichtigungs-Adresse {entry[:80]!r}: {exc}") from exc
+        if addr.lower() not in {o.lower() for o in out}:
+            out.append(addr)
+    if len(out) > 20:
+        raise ValueError("Höchstens 20 Benachrichtigungs-Adressen")
+    return ", ".join(out)
+
+
 def update_result_config(
     session: Session,
     quiz_id: int,
@@ -668,6 +690,7 @@ def update_result_config(
     )
     if problems:
         raise ValueError("; ".join(problems))
+    notify_emails = normalize_notify_emails(notify_emails)
     cfg = get_result_config(session, quiz_id)
     if cfg is None:
         cfg = QuizResultConfig(quiz_id=quiz_id)
