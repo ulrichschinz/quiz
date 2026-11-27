@@ -2,4 +2,4 @@
 # (`python -m codeindex.mcp_server`). The index core + CLI are stdlib-only and
 # need nothing here. Kept out of requirements-dev.txt so the acceptance gate
 # stays hermetic.
-mcp==1.30.0
+mcp==2.3.0
