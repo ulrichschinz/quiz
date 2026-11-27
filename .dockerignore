@@ -13,3 +13,22 @@ __pycache__/
 reports/
 tests/
 .DS_Store
+# SEC-018: keep secrets, local state, audit material and agent tooling out of
+# the build context (the Dockerfile does `COPY . .`).
+.env.*
+!.env.example
+*.sqlite
+*.sqlite3
+*.pem
+*.key
+.coverage
+.import_linter_cache/
+.code-index/
+.claude/
+docs/
+# Plain patterns only match at the context root; also catch nested copies.
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/.env
+**/__pycache__/

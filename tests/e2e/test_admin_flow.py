@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import pytest
 
+# >= ADMIN_PASSWORD minimum length (SEC-007).
+ADMIN_PW = "correct-horse-battery-staple"
+
 
 @pytest.mark.e2e
 def test_admin_requires_login(client) -> None:
@@ -14,16 +17,16 @@ def test_admin_requires_login(client) -> None:
 
 @pytest.mark.e2e
 def test_wrong_password_is_rejected(client, monkeypatch) -> None:
-    monkeypatch.setenv("ADMIN_PASSWORD", "secret")
+    monkeypatch.setenv("ADMIN_PASSWORD", ADMIN_PW)
     r = client.post("/login", data={"password": "nope"}, follow_redirects=False)
     assert r.status_code == 401
 
 
 @pytest.mark.e2e
 def test_login_build_publish_and_export(client, monkeypatch) -> None:
-    monkeypatch.setenv("ADMIN_PASSWORD", "secret")
+    monkeypatch.setenv("ADMIN_PASSWORD", ADMIN_PW)
 
-    login = client.post("/login", data={"password": "secret"}, follow_redirects=False)
+    login = client.post("/login", data={"password": ADMIN_PW}, follow_redirects=False)
     assert login.status_code == 303
 
     created = client.post(
@@ -58,8 +61,8 @@ def test_login_build_publish_and_export(client, monkeypatch) -> None:
 
 def _login_and_build(client, monkeypatch) -> tuple[int, int]:
     """Log in, create a quiz with one dimension + question. Returns (quiz_id, question_id)."""
-    monkeypatch.setenv("ADMIN_PASSWORD", "secret")
-    client.post("/login", data={"password": "secret"})
+    monkeypatch.setenv("ADMIN_PASSWORD", ADMIN_PW)
+    client.post("/login", data={"password": ADMIN_PW})
     created = client.post(
         "/admin/quizzes",
         data={"slug": "inline", "title_de": "Inline", "title_en": "Inline"},
@@ -241,8 +244,8 @@ def test_add_dimension_derives_key_from_name(client, monkeypatch) -> None:
 @pytest.mark.e2e
 def test_add_question_without_dimension_is_friendly_422(client, monkeypatch) -> None:
     # Fresh quiz with NO dimensions: the dimension <select> posts nothing.
-    monkeypatch.setenv("ADMIN_PASSWORD", "secret")
-    client.post("/login", data={"password": "secret"})
+    monkeypatch.setenv("ADMIN_PASSWORD", ADMIN_PW)
+    client.post("/login", data={"password": ADMIN_PW})
     created = client.post(
         "/admin/quizzes",
         data={"slug": "nodim", "title_de": "ND", "title_en": "ND"},
@@ -305,7 +308,7 @@ def test_question_focus_foreign_id_redirects_to_list(client, monkeypatch) -> Non
 
 @pytest.mark.e2e
 def test_logout_clears_session(client, monkeypatch) -> None:
-    monkeypatch.setenv("ADMIN_PASSWORD", "secret")
-    client.post("/login", data={"password": "secret"})
+    monkeypatch.setenv("ADMIN_PASSWORD", ADMIN_PW)
+    client.post("/login", data={"password": ADMIN_PW})
     client.post("/logout")
     assert client.get("/admin", follow_redirects=False).status_code == 303

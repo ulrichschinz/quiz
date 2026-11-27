@@ -22,7 +22,7 @@
 <div class="panel" style="border-color: color-mix(in srgb, var(--ar-coral) 35%, var(--ar-hairline));">
   <h3 class="panel-title">Quiz löschen</h3>
   <p class="admin-hint" style="margin-bottom: var(--ar-space-4);">Entfernt das Quiz mit allen Fragen, Bereichen, Stufen und Konfigurationen. Leads bleiben in der Datenbank. Das lässt sich nicht rückgängig machen.</p>
-  <form method="post" action="/admin/quizzes/{{ quiz.id }}/delete" onsubmit="return confirm('Dieses Quiz wirklich endgültig löschen?');">
+  <form method="post" action="/admin/quizzes/{{ quiz.id }}/delete" data-confirm="Dieses Quiz wirklich endgültig löschen?">
     <button class="ar-btn ar-btn-ghost" style="color: var(--ar-coral); border-color: color-mix(in srgb, var(--ar-coral) 40%, transparent);">Quiz endgültig löschen</button>
   </form>
 </div>

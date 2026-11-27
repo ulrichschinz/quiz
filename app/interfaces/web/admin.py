@@ -21,13 +21,13 @@ from fastapi.responses import (
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session
 
-from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.security import require_admin
 from app.domains.quizzes import admin as quizzes_admin
-from app.domains.quizzes import service as quizzes_service
 from app.domains.submissions import pipeline
 from app.domains.submissions import service as submissions_service
+from app.interfaces import lead_mail
+from app.shared.links import is_safe_link_url
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
 templates = Jinja2Templates(directory="templates")
@@ -430,18 +430,21 @@ def update_result(
     notify_emails: str = Form(""),
     session: Session = Depends(get_session),
 ):
-    quizzes_admin.update_result_config(
-        session,
-        quiz_id,
-        intro_de=intro_de,
-        intro_en=intro_en,
-        show_dimension_breakdown=show_dimension_breakdown is not None,
-        email_subject_de=email_subject_de,
-        email_subject_en=email_subject_en,
-        email_body_de=email_body_de,
-        email_body_en=email_body_en,
-        notify_emails=notify_emails,
-    )
+    try:
+        quizzes_admin.update_result_config(
+            session,
+            quiz_id,
+            intro_de=intro_de,
+            intro_en=intro_en,
+            show_dimension_breakdown=show_dimension_breakdown is not None,
+            email_subject_de=email_subject_de,
+            email_subject_en=email_subject_en,
+            email_body_de=email_body_de,
+            email_body_en=email_body_en,
+            notify_emails=notify_emails,
+        )
+    except ValueError as exc:  # SEC-011: unknown placeholder / broken braces
+        return _invalid(request, quiz_id, str(exc))
     return _saved(request, quiz_id)
 
 
@@ -720,6 +723,12 @@ def update_tier(
         return _invalid(request, quiz_id, "Min/Max müssen ganze Zahlen sein.")
     if mn > mx:
         return _invalid(request, quiz_id, "Min darf nicht größer als Max sein.")
+    if cta_url.strip() and not is_safe_link_url(cta_url.strip()):
+        return _invalid(
+            request,
+            quiz_id,
+            "Button-Link muss mit http:// oder https:// beginnen oder ein relativer Pfad (/…) sein.",
+        )
     quizzes_admin.update_tier(
         session,
         tier_id,
@@ -772,6 +781,18 @@ def leads(quiz_id: int, request: Request, session: Session = Depends(get_session
     )
 
 
+# SEC-004: a cell starting with one of these is evaluated as a formula by
+# Excel / LibreOffice / Sheets. Prefixing "'" makes it plain text.
+_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value: str) -> str:
+    """Neutralise spreadsheet formula injection in a visitor-supplied CSV cell."""
+    if value.startswith(_CSV_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
 @router.get("/quizzes/{quiz_id}/leads.csv")
 def leads_csv(quiz_id: int, session: Session = Depends(get_session)):
     rows = submissions_service.list_submissions(session, quiz_id)
@@ -794,11 +815,11 @@ def leads_csv(quiz_id: int, session: Session = Depends(get_session)):
         writer.writerow(
             [
                 r.created_at.isoformat(),
-                r.email or "",
-                r.name or "",
-                r.company or "",
+                _csv_safe(r.email or ""),
+                _csv_safe(r.name or ""),
+                _csv_safe(r.company or ""),
                 r.overall_score,
-                r.tier_name or "",
+                _csv_safe(r.tier_name or ""),
                 r.consent,
                 r.crm_pushed,
                 r.email_sent,
@@ -815,20 +836,44 @@ def leads_csv(quiz_id: int, session: Session = Depends(get_session)):
 def retry_pipeline(
     submission_id: int, quiz_id: int = Form(...), session: Session = Depends(get_session)
 ):
+    """'Erneut senden' (SEC-010 / REV-003).
+
+    The quiz is resolved from the submission itself (its own result-email config
+    and notify recipients); a form `quiz_id` that does not match is refused.
+    Only legs that have not succeeded are repeated — after a partial SMTP refusal
+    only the refused recipients — and a parallel retry of the same lead is a no-op.
+    Rendering is shared with the public submit (`interfaces.lead_mail`).
+    """
     submission = submissions_service.get_submission(session, submission_id)
-    quiz = quizzes_admin.get_quiz(session, quiz_id)
-    if submission is not None and quiz is not None:
-        email_cfg = quizzes_service.get_result_email_config(session, quiz, submission.lang)
-        host = get_settings().app_host
-        result_url = (
-            f"https://{host}/r/{submission.public_id}" if host else f"/r/{submission.public_id}"
-        )
-        pipeline.dispatch(
-            session,
-            submission,
-            email_subject=email_cfg.subject_template,
-            email_body=email_cfg.body_template,
-            notify_emails=email_cfg.notify_emails,
-            result_url=result_url,
-        )
-    return RedirectResponse(f"/admin/quizzes/{quiz_id}/leads", status_code=303)
+    if submission is None or submission.quiz_id != quiz_id:
+        raise HTTPException(status_code=404, detail="submission not found")
+    quiz = quizzes_admin.get_quiz(session, submission.quiz_id)
+    if quiz is None:
+        raise HTTPException(status_code=404, detail="quiz not found")
+    redirect = RedirectResponse(f"/admin/quizzes/{submission.quiz_id}/leads", status_code=303)
+
+    need_crm = not submission.crm_pushed
+    need_email = not submission.email_sent
+    if not (need_crm or need_email):
+        return redirect  # everything already delivered — idempotent
+    with pipeline.exclusive(submission_id) as acquired:
+        if acquired:
+            # REV-003: the pre-lock check above may be stale — a retry that held
+            # the lock just before us may have delivered meanwhile. Re-read the
+            # row under the lock and decide again.
+            session.refresh(submission)
+            need_crm = not submission.crm_pushed
+            need_email = not submission.email_sent
+            if not (need_crm or need_email):
+                return redirect
+            lead_mail.dispatch_lead(
+                session,
+                submission,
+                quiz,
+                crm=need_crm,
+                email=need_email,
+                only_recipients=pipeline.failed_email_recipients(submission)
+                if need_email
+                else None,
+            )
+    return redirect

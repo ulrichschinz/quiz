@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{# REV-002: shown (HTTP 404) for a result link whose quiz is no longer published. #}
+{% block title %}{% if lang == 'en' %}Result unavailable{% else %}Ergebnis nicht verfügbar{% endif %}{% endblock %}
+
+{% block content %}
+<section class="ar-container" style="padding: var(--ar-space-12) 0; max-width: 760px;">
+  <div class="ar-card">
+    {% if lang == 'en' %}
+    <h1 class="ar-display-s">This result is no longer available</h1>
+    <p class="ar-body" style="margin-top: var(--ar-space-3);">The quiz it belongs to has been taken offline.</p>
+    {% else %}
+    <h1 class="ar-display-s">Dieses Ergebnis ist nicht mehr verfügbar</h1>
+    <p class="ar-body" style="margin-top: var(--ar-space-3);">Das zugehörige Quiz ist nicht mehr online.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

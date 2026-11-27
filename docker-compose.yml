@@ -3,8 +3,10 @@ services:
     build: .
     image: ghcr.io/ulrichschinz/quiz:latest
     restart: unless-stopped
+    # SEC-018: loopback only — public traffic must go through the TLS proxy
+    # (caddy below reaches the app over the compose network as app:8000).
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       # Persist the lead DB across deploys (schema migrated in-process on boot).
       - ./quiz.db:/app/quiz.db

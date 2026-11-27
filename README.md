@@ -22,6 +22,11 @@ uvicorn app.main:app --reload
 ```
 
 Copy `.env.example` → `.env` and set at least `SECRET_KEY` and `ADMIN_PASSWORD`.
+The app refuses to start without a strong `SECRET_KEY` (>= 32 chars, not a
+placeholder — `python -c "import secrets; print(secrets.token_urlsafe(48))"`);
+an `ADMIN_PASSWORD` shorter than 12 chars is ignored (logged, admin login
+disabled). For local dev over plain http set `SESSION_HTTPS_ONLY=false` (else the login cookie is never sent back);
+`ENABLE_API_DOCS=true` turns on `/docs` locally.
 Set `CRM_INGEST_URL` + `CRM_API_KEY` and the `SMTP_*` vars to enable the CRM and
 email legs of the lead pipeline (both skip cleanly when unset).
 

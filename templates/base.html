@@ -5,9 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Agentic AI Readiness{% endblock %} · Agentic Reach</title>
   <link rel="icon" href="/static/brand/logos/mark-color.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/brand/brand-kit.css">
   <link rel="stylesheet" href="/static/quiz/quiz.css">
   {% block head_extra %}{% endblock %}
@@ -72,89 +69,10 @@
 </footer>
 
 <script defer src="/static/brand/components.js"></script>
-<!-- Unified DE/EN toggle. Mirrors the landing page (public/lang.js): the URL
-     parameter ?lang=de|en is the source of truth, so a quiz page can be linked
-     or shared in a given language. Every [data-de]/[data-en] element swaps its
-     innerHTML, the choice is remembered, internal links keep carrying ?lang=,
-     and a 'langchange' event lets the quiz player re-render its questions.
-     Admin pages hide the DE/EN toggle and stay German — there the URL and links
-     are left untouched. -->
-<script>
-  (function () {
-    var VALID = ['de', 'en'];
-    var STORAGE_KEY = 'ar_lang'; // shared key/convention with the landing page
-    function isValid(l) { return VALID.indexOf(l) !== -1; }
-
-    // ?lang= → remembered choice → browser language → server-rendered default.
-    function detectInitial() {
-      var urlLang = new URLSearchParams(location.search).get('lang');
-      if (isValid(urlLang)) return urlLang;
-      var stored = null;
-      try { stored = localStorage.getItem(STORAGE_KEY); } catch (e) {}
-      if (isValid(stored)) return stored;
-      var nav = (navigator.language || '').slice(0, 2).toLowerCase();
-      if (nav === 'en') return 'en';
-      return document.body.dataset.lang === 'en' ? 'en' : 'de';
-    }
-
-    // Only public pages offer language switching (they render the DE/EN toggle).
-    function addressable() { return !!document.querySelector('[data-lang-btn]'); }
-
-    function syncUrl(lang) {
-      var p = new URLSearchParams(location.search);
-      if (p.get('lang') === lang) return;
-      p.set('lang', lang);
-      history.replaceState(null, '', location.pathname + '?' + p.toString() + location.hash);
-    }
-
-    // Append ?lang=<active> to an internal href so navigation keeps the language.
-    // External schemes (http/mailto/tel/…) and pure anchors (#foo) stay as-is.
-    function withLang(href, lang) {
-      if (!href) return href;
-      if (/^(https?:|mailto:|tel:|javascript:|data:)/i.test(href)) return href;
-      if (href.charAt(0) === '#') return href;
-      var hashIdx = href.indexOf('#');
-      var hash = hashIdx >= 0 ? href.slice(hashIdx) : '';
-      var noHash = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
-      var qIdx = noHash.indexOf('?');
-      var path = qIdx >= 0 ? noHash.slice(0, qIdx) : noHash;
-      var params = new URLSearchParams(qIdx >= 0 ? noHash.slice(qIdx + 1) : '');
-      params.set('lang', lang);
-      return path + '?' + params.toString() + hash;
-    }
-
-    function rewriteLinks(lang) {
-      document.querySelectorAll('a[href]').forEach(function (a) {
-        if (a.hasAttribute('data-no-lang')) return;
-        a.setAttribute('href', withLang(a.getAttribute('href'), lang));
-      });
-    }
-
-    function setLang(lang) {
-      if (!isValid(lang)) lang = 'de';
-      document.body.dataset.lang = lang;
-      document.documentElement.lang = lang;
-      document.querySelectorAll('[data-' + lang + ']').forEach(function (el) {
-        var v = el.getAttribute('data-' + lang);
-        if (v != null) el.innerHTML = v;
-      });
-      document.querySelectorAll('[data-lang-btn]').forEach(function (b) {
-        b.classList.toggle('active', b.dataset.langBtn === lang);
-      });
-      try { localStorage.setItem(STORAGE_KEY, lang); } catch (e) {}
-      if (addressable()) { syncUrl(lang); rewriteLinks(lang); }
-      window.dispatchEvent(new CustomEvent('langchange', { detail: { lang: lang } }));
-    }
-
-    window.ARQuizLang = { set: setLang, get: function () { return document.body.dataset.lang || 'de'; } };
-    document.addEventListener('DOMContentLoaded', function () {
-      document.querySelectorAll('[data-lang-btn]').forEach(function (b) {
-        b.addEventListener('click', function () { setLang(b.dataset.langBtn); });
-      });
-      setLang(detectInitial());
-    });
-  })();
-</script>
+<!-- Unified DE/EN toggle (?lang=de|en) — external so the CSP needs no
+     inline script (SEC-014). Must stay before body_scripts: deferred scripts run
+     in document order and the quiz player relies on window.ARQuizLang. -->
+<script defer src="/static/quiz/lang.js"></script>
 {% block body_scripts %}{% endblock %}
 </body>
 </html>

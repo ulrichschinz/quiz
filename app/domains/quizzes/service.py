@@ -35,11 +35,17 @@ from app.domains.quizzes.schemas import (
     ScoreResult,
 )
 from app.shared.i18n import pick
-from app.shared.links import call_booking_url, call_label
+from app.shared.links import call_booking_url, call_label, is_safe_link_url
 
 
 def get_published_quiz(session: Session, slug: str) -> Quiz | None:
     quiz = session.exec(select(Quiz).where(Quiz.slug == slug)).first()
+    return quiz if quiz is not None and quiz.is_published else None
+
+
+def get_published_quiz_by_id(session: Session, quiz_id: int) -> Quiz | None:
+    """The quiz with this id, but only while it is published (REV-002)."""
+    quiz = session.get(Quiz, quiz_id)
     return quiz if quiz is not None and quiz.is_published else None
 
 
@@ -129,6 +135,45 @@ def get_landing_view(session: Session, quiz: Quiz) -> LandingView:
     )
 
 
+def answer_errors(session: Session, quiz: Quiz, answers: dict[int, int]) -> list[str]:
+    """Why `answers` is not a valid, complete answer sheet for `quiz` (SEC-003/017).
+
+    Every key must be a question of this quiz, every value an option of that
+    question, and every required question (one the player can answer, i.e. with
+    at least one option) must be answered. Empty list == valid. The player never
+    skips a question, so a legitimate submit always passes.
+    """
+    questions = session.exec(select(Question).where(Question.quiz_id == quiz.id)).all()
+    question_ids = [q.id for q in questions if q.id is not None]
+    options = (
+        session.exec(
+            select(AnswerOption).where(col(AnswerOption.question_id).in_(question_ids))
+        ).all()
+        if question_ids
+        else []
+    )
+    options_by_q: dict[int, set[int]] = {}
+    for o in options:
+        if o.id is not None:
+            options_by_q.setdefault(o.question_id, set()).add(o.id)
+
+    problems: list[str] = []
+    known = set(question_ids)
+    for question_id, option_id in answers.items():
+        if question_id not in known:
+            problems.append(f"unknown question {question_id}")
+        elif option_id not in options_by_q.get(question_id, set()):
+            problems.append(f"invalid option for question {question_id}")
+    missing = [
+        q.id
+        for q in questions
+        if q.id is not None and q.is_required and options_by_q.get(q.id) and q.id not in answers
+    ]
+    if missing:
+        problems.append(f"unanswered questions: {sorted(missing)}")
+    return problems
+
+
 def score_submission(session: Session, quiz: Quiz, answers: dict[int, int]) -> ScoreResult:
     """Compute the per-dimension + overall score and resolve the tier.
 
@@ -212,6 +257,8 @@ def get_result_view(
     # visitor's language); a tier may override the URL/label per band.
     tier_cta_label = pick(tier.cta_label_de, tier.cta_label_en, lang) if tier else ""
     tier_cta_url = (tier.cta_url if tier else None) or ""
+    if tier_cta_url and not is_safe_link_url(tier_cta_url):
+        tier_cta_url = ""  # SEC-015: a legacy unsafe value falls back to the default
 
     return ResultView(
         intro=pick(cfg.intro_de, cfg.intro_en, lang) if cfg else "",
