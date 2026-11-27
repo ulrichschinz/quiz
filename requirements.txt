@@ -4,7 +4,7 @@ fastapi==0.165.0
 starlette==1.10.0
 uvicorn[standard]==0.34.0
 sqlmodel==0.0.22
-pydantic-settings==2.7.1
+pydantic-settings==2.16.3
 alembic==1.14.0
 jinja2==3.1.6
 python-multipart==0.0.34
