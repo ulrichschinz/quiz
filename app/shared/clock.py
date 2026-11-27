@@ -2,7 +2,9 @@
 
 `utcnow()` returns a naive UTC datetime (tz stripped) so stored stamps stay
 comparable with values read back from SQLite, without the `datetime.utcnow()`
-deprecation.
+deprecation. Model timestamp fields are annotated `pydantic.NaiveDatetime` so
+SQLModel (>= 0.0.3x) maps them to a plain `DateTime` instead of its tz-aware
+`UTCDateTime`, which rejects naive values on bind.
 """
 
 from __future__ import annotations

@@ -15,8 +15,7 @@ copied scores (domain independence).
 
 from __future__ import annotations
 
-from datetime import datetime
-
+from pydantic import NaiveDatetime
 from sqlmodel import Field
 
 from app.core.db import SQLModel
@@ -32,8 +31,8 @@ class Quiz(SQLModel, table=True):
     is_published: bool = Field(default=False)
     default_lang: str = Field(default="de")
     estimated_minutes: int = Field(default=3)
-    created_at: datetime = Field(default_factory=utcnow)
-    updated_at: datetime = Field(default_factory=utcnow)
+    created_at: NaiveDatetime = Field(default_factory=utcnow)
+    updated_at: NaiveDatetime = Field(default_factory=utcnow)
 
 
 class Dimension(SQLModel, table=True):
