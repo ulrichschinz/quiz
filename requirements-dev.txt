@@ -1,5 +1,5 @@
 -r requirements.txt
-ruff==0.9.6
+ruff==0.17.6
 mypy==1.15.0
 import-linter==2.3
 pytest==9.2.0
