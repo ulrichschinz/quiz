@@ -3,7 +3,7 @@ fastapi==0.165.0
 # GHSA-82w8-qh3p-5jfq, GHSA-7f5h-v6xp-fcq8, GHSA-2c2j-9gv5-cj73 et al.
 starlette==1.10.0
 uvicorn[standard]==0.34.0
-sqlmodel==0.0.22
+sqlmodel==0.0.50
 pydantic-settings==2.7.1
 alembic==1.14.0
 jinja2==3.1.6
