@@ -261,6 +261,10 @@ def _smtp_send(settings: Settings, messages: list[Message]) -> dict[str, str]:
     failures: dict[str, str] = {}
     if not messages:
         return failures
+    encrypted = settings.smtp_port == _SMTPS_PORT or settings.smtp_starttls
+    if settings.smtp_user and not encrypted:
+        # Never send SMTP credentials (and lead PII) in clear text.
+        raise RuntimeError("refusing SMTP AUTH without TLS (set SMTP_STARTTLS=true or port 465)")
     with _connect(settings) as server:
         if settings.smtp_user:
             server.login(settings.smtp_user, settings.smtp_password)

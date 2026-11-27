@@ -9,7 +9,7 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       # Persist the lead DB across deploys (schema migrated in-process on boot).
-      - ./quiz.db:/app/quiz.db
+      - ./quiz.db:/app/data/quiz.db
     env_file:
       - .env
 

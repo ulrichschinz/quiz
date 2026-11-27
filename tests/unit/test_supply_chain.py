@@ -150,3 +150,13 @@ def test_compose_app_port_is_loopback_only() -> None:
 def test_dockerignore_excludes_secrets_and_state(pattern: str) -> None:
     lines = (REPO / ".dockerignore").read_text(encoding="utf-8").splitlines()
     assert pattern in lines
+
+
+def test_image_runs_unprivileged_with_writable_data_dir_only() -> None:
+    dockerfile = (REPO / "Dockerfile").read_text(encoding="utf-8")
+    users = re.findall(r"^USER\s+(\S+)", dockerfile, re.M)
+    assert users and users[-1] not in {"root", "0"}, "image must not run as root (SEC-018)"
+    assert "chown -R" not in dockerfile, "source tree must stay root-owned"
+    assert "DATABASE_URL=sqlite:////app/data/quiz.db" in dockerfile
+    compose = (REPO / "docker-compose.yml").read_text(encoding="utf-8")
+    assert "./quiz.db:/app/data/quiz.db" in compose
